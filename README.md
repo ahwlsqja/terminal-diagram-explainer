@@ -4,7 +4,7 @@
 
 구성은 두 부분으로 나뉩니다.
 
-- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart → Unicode/ASCII renderer
+- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence → Unicode/ASCII renderer
 - `terminal-diagram-explainer`: 한 줄 결론 → 도식 → 단계별 해설 → 개발 핵심 포인트 순으로 설명하는 Codex Skill
 
 플러그인은 표현 방식만 추가하며 프로젝트의 `AGENTS.md`, SDLC, workflow 또는 repo-local Skill을 변경하지 않습니다.
@@ -32,7 +32,24 @@ Validate -.->|no| Reject[Reject + observe]
 - cycle과 self-loop는 SCC 분석 후 외곽 feedback route로 렌더링하며 label은 `feedback:` legend에 표시합니다.
 - 중간 rank를 건너뛰는 edge도 node 관통을 피하도록 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
 - cross-subgraph edge는 frame을 관통하지 않는 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
-- `classDef`, `style`, `click`, HTML/Markdown label, sequence/ER diagram은 아직 명시적으로 거부합니다.
+
+```mermaid
+sequenceDiagram
+participant Client as Browser Client
+participant API as API Gateway
+participant Worker as Async Worker
+Client ->> API: POST /events
+API ->> Worker: enqueue
+API -->> Client: 202 Accepted
+Worker ->> Worker: record metrics
+```
+
+- participant: `participant ID`, `participant ID as Label`
+- message: request `->>`, return `-->>`, 첫 `:` 뒤의 필수 label
+- participant는 message보다 먼저 명시적으로 선언하며 source order가 lifeline 순서입니다.
+- fan-out은 같은 sender의 연속 message, self-message는 같은 ID endpoint로 표현합니다.
+- 최대 16 participants, 96 messages입니다.
+- `classDef`, `style`, `click`, HTML/Markdown label, Sequence fragment/activation, ER diagram은 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

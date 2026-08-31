@@ -27,4 +27,15 @@ Forward edges that skip an intermediate rank also use an outer gutter. Labeled r
 
 Cross-subgraph edges use frame-safe outer corridors and place labels in the bounded `routed:` legend.
 
-Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, sequence/ER, `RL`, `BT`.
+```text
+sequenceDiagram
+participant Client as Browser Client
+participant API as API Gateway
+Client ->> API: request
+API -->> Client: response
+API ->> API: record metrics
+```
+
+Sequence limits: 16 participants, 96 messages, 64-byte ID, 96-cell label. Declare all participants before messages. Endpoint references use IDs, `->>` is request, `-->>` is return, and the first `:` starts the required rest-of-line label. Repeated messages from one sender express fan-out; same endpoints express a self-message.
+
+Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence fragments/activation/notes, ER, `RL`, `BT`.

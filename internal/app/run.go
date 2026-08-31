@@ -7,13 +7,15 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/render"
+	"github.com/ahwlsqja/terminal-diagram-explainer/internal/sequence"
 )
 
 const (
-	Version       = "0.4.0"
+	Version       = "0.5.0"
 	MaxInputBytes = 256 * 1024
 )
 
@@ -75,14 +77,24 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		fmt.Fprintln(stderr, err)
 		return 2
 	}
-	graph, err := flow.Parse(string(source), flow.DefaultLimits())
-	if err != nil {
-		fmt.Fprintln(stderr, err)
-		return 2
-	}
 	options := render.DefaultOptions()
 	options.ASCII = *ascii
-	output, err := render.Flow(graph, options)
+	var output string
+	if isSequenceSource(string(source)) {
+		diagram, parseErr := sequence.Parse(string(source), sequence.DefaultLimits())
+		if parseErr != nil {
+			fmt.Fprintln(stderr, parseErr)
+			return 2
+		}
+		output, err = render.Sequence(diagram, options)
+	} else {
+		graph, parseErr := flow.Parse(string(source), flow.DefaultLimits())
+		if parseErr != nil {
+			fmt.Fprintln(stderr, parseErr)
+			return 2
+		}
+		output, err = render.Flow(graph, options)
+	}
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
@@ -96,6 +108,17 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+func isSequenceSource(source string) bool {
+	for _, raw := range strings.Split(source, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "%%") {
+			continue
+		}
+		return line == "sequenceDiagram"
+	}
+	return false
 }
 
 func readBounded(reader io.Reader) ([]byte, error) {

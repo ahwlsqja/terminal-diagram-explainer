@@ -1,4 +1,4 @@
-# 0.4 문법
+# 0.5 문법
 
 ## Header
 
@@ -63,10 +63,34 @@ end
 - Scope를 포함한 문서에서 짝이 없는 `end`는 오류입니다. Flat 문서의 기존 `end`, `end[End]`, `end --> A` node 문법은 유지됩니다.
 - Cross-subgraph edge는 frame-safe 외곽 route를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
 
+## Sequence Diagrams
+
+```text
+sequenceDiagram
+participant Client as Browser Client
+participant API as API Gateway
+participant Worker
+Client ->> API: POST /events
+API ->> Worker: enqueue
+API -->> Client: 202 Accepted
+Worker ->> Worker: record metrics
+```
+
+- Header는 정확히 `sequenceDiagram`이어야 합니다.
+- `participant ID`, `participant ID as Label`을 지원하며 모든 participant를 message보다 먼저 선언합니다.
+- Endpoint는 display label이 아니라 participant ID를 사용합니다.
+- `->>`는 request, `-->>`는 return이며 source/target 순서에 따라 오른쪽·왼쪽 arrow를 렌더링합니다.
+- 첫 `:` 뒤의 나머지 문자열이 message label입니다. 추가 `:`, `;`, `%%`는 label 문자로 보존합니다.
+- 같은 sender의 연속 message가 fan-out이며 `A ->> B, C` 축약은 지원하지 않습니다.
+- Self-message는 `A ->> A: label` 또는 `A -->> A: label`로 표현합니다.
+- Participant ID와 display label은 각각 diagram 안에서 유일해야 합니다.
+- 최소 1 participant와 1 message가 필요하며 최대 16 participants, 96 messages입니다.
+- 긴 long-hop label은 전용 label row에서 중간 lifeline을 잠시 가릴 수 있습니다. Arrow row junction과 다음 row lifeline은 유지됩니다.
+
 ## Rejected input
 
 - invalid UTF-8
 - NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
 - 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
-- sequence/ER diagrams와 방향 `RL`, `BT`
+- Sequence fragment/activation/note와 ER diagrams, Flow 방향 `RL`, `BT`

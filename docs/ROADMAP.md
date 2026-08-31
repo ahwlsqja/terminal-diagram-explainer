@@ -18,11 +18,13 @@
 - Cross-scope·feedback·skip-rank edge는 frame-safe corridor와 방향별 portal을 사용합니다.
 - malformed `end`, duplicate membership, cross-subgraph edge, nested CJK label, long TD inline label을 parser/property/golden test로 고정합니다.
 
-## 3. Sequence Diagram
+## 3. Sequence Diagram — 완료 (0.5.0)
 
-- 초기 상한: participants 16, messages 96, fragments 32, nesting 8.
-- request/return, fan-out, self-message, Unicode/ASCII golden을 먼저 추가합니다.
-- fragment/activation은 기본 message model의 결정성·allocation gate 통과 후 추가합니다.
+- 독립 participant/message 모델과 앱 header dispatcher로 Flow 경계를 유지합니다.
+- participants 16, messages 96, label 96 cells 상한을 parser와 renderer 양쪽에서 검증합니다.
+- request/return, fan-out, self-message, 양방향 arrow, Unicode/ASCII를 지원합니다.
+- 96개 일반 message는 2-row pitch로 기본 200행 canvas에 들어가며 self-message 혼합은 exact bounds를 넘으면 fail-closed 처리합니다.
+- fragment/activation은 별도 확장 대상으로 남깁니다.
 
 ## 4. ER Diagram
 

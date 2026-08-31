@@ -1,6 +1,6 @@
 ---
 name: terminal-diagram-explainer
-description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·Worker·상태 전이·장애 원인을 한 줄 결론, bounded 터미널 Flowchart, 단계별 해설로 설명한다. 관계·분기·경계가 여러 개인 개발 설명과 코드 변경의 런타임 의미를 전달할 때 사용하며 단순한 한 단계 답변이나 text-only 요청에는 사용하지 않는다.
+description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·Worker 호출 순서·상태 전이·장애 원인을 한 줄 결론, bounded 터미널 Flowchart 또는 Sequence Diagram, 단계별 해설로 설명한다. 관계·분기·경계·시간 순서가 여러 개인 개발 설명과 코드 변경의 런타임 의미를 전달할 때 사용하며 단순한 한 단계 답변이나 text-only 요청에는 사용하지 않는다.
 ---
 
 # Terminal Diagram Explainer
@@ -22,7 +22,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 ## 기본 출력
 
 1. **한 줄 결론**: 무엇이 왜 그렇게 동작하는지 먼저 말한다.
-2. **터미널 도식 한 개**: 한 가지 핵심 이야기만 5~12 nodes로 표현한다.
+2. **터미널 도식 한 개**: 한 가지 핵심 이야기만 5~12 nodes 또는 최대 6 participants로 표현한다.
 3. **읽는 순서**: 도식 label과 연결한 3~7단계 설명을 쓴다.
 4. **개발 핵심**: 관련 있는 항목만 고른다.
    - source of truth와 data ownership
@@ -37,13 +37,16 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 - 처리·데이터 파이프라인: `flowchart LR`
 - 분기·의사결정·장애 처리: `flowchart TD`
+- API request/response, 서비스 간 호출 순서, fan-out, self-call: `sequenceDiagram`
 - 정상 흐름은 `-->`, 실패·비동기·보조 흐름은 `-.->`를 사용한다.
 - decision은 `ID{label}`, data store/view는 `ID[(label)]`로 표시한다.
 - ownership, service, data, trust boundary가 설명의 핵심이면 `subgraph ID[label] ... end`로 묶는다. Node ID와 subgraph ID는 전체 graph에서 유일해야 한다.
 - cycle과 self-loop를 지원한다. Feedback edge는 외곽 route로 그리고 label은 도식 아래 `feedback:` legend에 표시된다.
 - 중간 rank를 건너뛰는 edge도 외곽 route를 사용하며 label은 `routed:` legend에 표시될 수 있다.
 - cross-subgraph edge는 frame-safe 외곽 route를 사용하며 label은 `routed:` legend에 표시될 수 있다.
-- 현재 버전은 class/style/click, sequence/ER 문법을 지원하지 않는다.
+- Sequence participant는 먼저 명시 선언하고, request는 `->>`, return은 `-->>`, fan-out은 연속 message로 표시한다.
+- Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
+- 현재 버전은 class/style/click, Sequence fragment/activation/note, ER 문법을 지원하지 않는다.
 
 문법이 필요하면 [references/grammar.md](references/grammar.md)를 읽는다. 설명 관점과 예시가 필요하면 [references/developer-lenses.md](references/developer-lenses.md)를 읽는다.
 

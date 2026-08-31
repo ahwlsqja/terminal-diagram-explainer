@@ -26,6 +26,19 @@ Model --> Consumer[API or worker]
 - DB transaction과 external call의 경계를 표시한다.
 - cache, staleness, error contract가 consumer에게 어떻게 보이는지 설명한다.
 
+호출의 시간 순서와 request/response가 핵심이면 Flowchart 대신 작은 Sequence Diagram을 사용한다.
+
+```text
+sequenceDiagram
+participant Client
+participant API
+participant Store
+Client ->> API: request
+API ->> Store: canonical read
+Store -->> API: result
+API -->> Client: response
+```
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

@@ -1,14 +1,16 @@
 # 입력·실행 경계
 
-이 도구는 Codex가 생성한 작은 설명용 Flowchart만 처리합니다. 임의 Mermaid 호환 renderer가 아닙니다.
+이 도구는 Codex가 생성한 작은 설명용 Flowchart와 Sequence Diagram만 처리합니다. 임의 Mermaid 호환 renderer가 아닙니다.
 
 ## 불변식
 
 - 입력은 256 KiB 이하입니다.
 - 최대 2,048 lines, 48 nodes, 96 edges, 32 subgraphs, 중첩 깊이 8, label 96 cells입니다.
+- Sequence Diagram은 최대 16 participants, 96 messages이며 participant와 message label은 최대 96 cells입니다.
 - 기본 canvas는 240×200 cells, hard cap은 512×512 cells이며 clipping 대신 오류를 반환합니다.
 - SCC·feedback 분석은 32,768 고정 work-step budget 안에서 종료합니다.
 - 직접 구성된 `Graph`도 renderer 진입점에서 parser의 custom `Limits`와 무관한 hard limit 48 nodes, 96 edges, 32 subgraphs, depth 8, endpoint, ID, label, parent forest, membership을 다시 검증합니다.
+- 직접 구성된 Sequence `Diagram`도 renderer 진입점에서 participant/message count, ID·display label uniqueness, endpoint, message kind, label을 다시 검증합니다.
 - invalid/unsupported syntax는 line/column이 있는 오류로 fail-closed 처리합니다.
 - 입력 검증·파싱·렌더 실패는 stdout에 아무것도 기록하지 않습니다. OS·pipe·writer가 실제 쓰기 도중 실패한 경우에는 이미 전달된 byte를 회수할 수 없으므로 exit code 1과 stderr 진단으로 알립니다.
 - label의 terminal control·bidi·format 문자는 렌더 전에 거부합니다.
@@ -21,6 +23,8 @@
 - Subgraph는 `Node.Scope` 단일 membership과 source-order parent forest로 표현하며 빈 subtree와 node/subgraph ID 충돌을 거부합니다.
 - Scoped layout은 LR y-band, TD x-band로 sibling frame을 분리하고 cross-scope route는 예약 corridor와 검증된 frame portal만 사용합니다.
 - Feedback은 `feedback:`, label이 있는 skip-rank forward edge는 `routed:` legend로 분리하며 두 legend 모두 output bounds에 포함합니다.
+- Sequence layout은 participant source order와 message time order만 사용합니다. 일반 message는 label/arrow 2-row pitch, self-message는 전용 right corridor를 사용하며 fragment·activation route search는 수행하지 않습니다.
+- Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.
 - Canvas는 하나의 bounded flat cell buffer를 사용하며 row별 또는 edge별 full-canvas clone을 만들지 않습니다.
 
 ## Upstream audit에서 확인한 제거 대상

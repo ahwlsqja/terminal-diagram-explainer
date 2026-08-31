@@ -145,9 +145,9 @@ func (c *canvas) glyph(horizontal, dashed bool) string {
 }
 
 func (c *canvas) arrow(x, y int, direction flowDirection) error {
-	value := map[flowDirection]string{right: "▶", down: "▼"}[direction]
+	value := map[flowDirection]string{right: "▶", down: "▼", left: "◀"}[direction]
 	if c.ascii {
-		value = map[flowDirection]string{right: ">", down: "v"}[direction]
+		value = map[flowDirection]string{right: ">", down: "v", left: "<"}[direction]
 	}
 	return c.put(x, y, value)
 }
@@ -226,4 +226,5 @@ type flowDirection uint8
 const (
 	right flowDirection = iota
 	down
+	left
 )
