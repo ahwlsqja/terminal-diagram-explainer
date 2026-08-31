@@ -14,6 +14,8 @@ const maxGraphWorkSteps = 32_768
 const (
 	maxRenderNodes      = 48
 	maxRenderEdges      = 96
+	maxRenderSubgraphs  = 32
+	maxRenderScopeDepth = 8
 	maxRenderIDBytes    = 64
 	maxRenderLabelCells = 96
 )
@@ -123,10 +125,14 @@ func validateGraph(graph *flow.Graph) error {
 	if len(graph.Edges) > maxRenderEdges {
 		return fmt.Errorf("%w: edge count %d", ErrInvalidGraph, len(graph.Edges))
 	}
+	if len(graph.Subgraphs) > maxRenderSubgraphs {
+		return fmt.Errorf("%w: subgraph count %d", ErrInvalidGraph, len(graph.Subgraphs))
+	}
 	if graph.Direction != flow.LeftToRight && graph.Direction != flow.TopToBottom {
 		return fmt.Errorf("%w: direction %d", ErrInvalidGraph, graph.Direction)
 	}
 	seenIDs := make(map[string]struct{}, len(graph.Nodes))
+	subtreeNodes := make([]int, len(graph.Subgraphs)+1)
 	for nodeIndex, node := range graph.Nodes {
 		if !validNodeID(node.ID, maxRenderIDBytes) {
 			return fmt.Errorf("%w: node %d ID", ErrInvalidGraph, nodeIndex)
@@ -138,10 +144,43 @@ func validateGraph(graph *flow.Graph) error {
 		if node.Shape != flow.Process && node.Shape != flow.Decision && node.Shape != flow.DataStore {
 			return fmt.Errorf("%w: node %d shape", ErrInvalidGraph, nodeIndex)
 		}
+		if int(node.Scope) > len(graph.Subgraphs) {
+			return fmt.Errorf("%w: node %d scope", ErrInvalidGraph, nodeIndex)
+		}
+		subtreeNodes[node.Scope]++
 		labelWidth, err := textcell.Width(node.Label)
 		if err != nil || labelWidth == 0 || labelWidth > maxRenderLabelCells {
 			return fmt.Errorf("%w: node %d label", ErrInvalidGraph, nodeIndex)
 		}
+	}
+	depths := make([]int, len(graph.Subgraphs)+1)
+	for subgraphIndex, subgraph := range graph.Subgraphs {
+		ref := flow.ScopeRef(subgraphIndex + 1)
+		if !validNodeID(subgraph.ID, maxRenderIDBytes) {
+			return fmt.Errorf("%w: subgraph %d ID", ErrInvalidGraph, subgraphIndex)
+		}
+		if _, exists := seenIDs[subgraph.ID]; exists {
+			return fmt.Errorf("%w: duplicate ID %q", ErrInvalidGraph, subgraph.ID)
+		}
+		seenIDs[subgraph.ID] = struct{}{}
+		if subgraph.Parent >= ref {
+			return fmt.Errorf("%w: subgraph %d parent", ErrInvalidGraph, subgraphIndex)
+		}
+		depths[ref] = depths[subgraph.Parent] + 1
+		if depths[ref] > maxRenderScopeDepth {
+			return fmt.Errorf("%w: subgraph %d depth", ErrInvalidGraph, subgraphIndex)
+		}
+		labelWidth, err := textcell.Width(subgraph.Label)
+		if err != nil || labelWidth == 0 || labelWidth > maxRenderLabelCells {
+			return fmt.Errorf("%w: subgraph %d label", ErrInvalidGraph, subgraphIndex)
+		}
+	}
+	for ref := len(graph.Subgraphs); ref > 0; ref-- {
+		if subtreeNodes[ref] == 0 {
+			return fmt.Errorf("%w: subgraph %d is empty", ErrInvalidGraph, ref-1)
+		}
+		parent := graph.Subgraphs[ref-1].Parent
+		subtreeNodes[parent] += subtreeNodes[ref]
 	}
 	for edgeIndex, edge := range graph.Edges {
 		if edge.From < 0 || edge.From >= len(graph.Nodes) || edge.To < 0 || edge.To >= len(graph.Nodes) {

@@ -39,9 +39,11 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 분기·의사결정·장애 처리: `flowchart TD`
 - 정상 흐름은 `-->`, 실패·비동기·보조 흐름은 `-.->`를 사용한다.
 - decision은 `ID{label}`, data store/view는 `ID[(label)]`로 표시한다.
+- ownership, service, data, trust boundary가 설명의 핵심이면 `subgraph ID[label] ... end`로 묶는다. Node ID와 subgraph ID는 전체 graph에서 유일해야 한다.
 - cycle과 self-loop를 지원한다. Feedback edge는 외곽 route로 그리고 label은 도식 아래 `feedback:` legend에 표시된다.
 - 중간 rank를 건너뛰는 edge도 외곽 route를 사용하며 label은 `routed:` legend에 표시될 수 있다.
-- 현재 버전은 subgraph, class/style, sequence/ER 문법을 지원하지 않는다.
+- cross-subgraph edge는 frame-safe 외곽 route를 사용하며 label은 `routed:` legend에 표시될 수 있다.
+- 현재 버전은 class/style/click, sequence/ER 문법을 지원하지 않는다.
 
 문법이 필요하면 [references/grammar.md](references/grammar.md)를 읽는다. 설명 관점과 예시가 필요하면 [references/developer-lenses.md](references/developer-lenses.md)를 읽는다.
 

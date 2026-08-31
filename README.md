@@ -13,19 +13,26 @@
 
 ```mermaid
 flowchart LR
+subgraph Service[Service boundary]
 Receive[Request] --> Validate{Valid?}
-Validate -->|yes| Store[(Canonical model)]
+end
+subgraph Data[Data boundary]
+Store[(Canonical model)]
+end
+Validate -->|yes| Store
 Validate -.->|no| Reject[Reject + observe]
-Store -.->|retry| Validate
 ```
 
 - 방향: `LR`, `TD`, `TB`
 - 노드: `ID`, `ID[label]`, `ID{decision}`, `ID[(data store)]`
 - edge: `-->`, `-.->`, 선택적 `|label|`
 - 한 줄 chain, `%%` 주석
+- subgraph: `subgraph ID`, `subgraph ID[label]`, 중첩 `end`
+- node ID는 전체 graph에서 유일하며 각 node는 root 또는 하나의 subgraph에 직접 소속됩니다.
 - cycle과 self-loop는 SCC 분석 후 외곽 feedback route로 렌더링하며 label은 `feedback:` legend에 표시합니다.
 - 중간 rank를 건너뛰는 edge도 node 관통을 피하도록 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
-- `classDef`, `subgraph`, HTML/Markdown label, sequence/ER diagram은 아직 명시적으로 거부합니다.
+- cross-subgraph edge는 frame을 관통하지 않는 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
+- `classDef`, `style`, `click`, HTML/Markdown label, sequence/ER diagram은 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

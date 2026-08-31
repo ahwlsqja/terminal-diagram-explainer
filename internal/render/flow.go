@@ -31,6 +31,9 @@ func Flow(graph *flow.Graph, options Options) (string, error) {
 	}
 
 	outer := outerEdgeMask(graph, plan)
+	if len(graph.Subgraphs) > 0 {
+		return flowScoped(graph, plan, outer, options)
+	}
 	placements, err := place(graph, plan.ranks, plan.maxRank, outer, options)
 	if err != nil {
 		return "", err

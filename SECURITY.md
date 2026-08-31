@@ -5,10 +5,10 @@
 ## 불변식
 
 - 입력은 256 KiB 이하입니다.
-- 최대 2,048 lines, 48 nodes, 96 edges, label 96 cells입니다.
+- 최대 2,048 lines, 48 nodes, 96 edges, 32 subgraphs, 중첩 깊이 8, label 96 cells입니다.
 - 기본 canvas는 240×200 cells, hard cap은 512×512 cells이며 clipping 대신 오류를 반환합니다.
 - SCC·feedback 분석은 32,768 고정 work-step budget 안에서 종료합니다.
-- 직접 구성된 `Graph`도 renderer 진입점에서 parser의 custom `Limits`와 무관한 hard limit 48 nodes, 96 edges, endpoint, ID, label을 다시 검증합니다.
+- 직접 구성된 `Graph`도 renderer 진입점에서 parser의 custom `Limits`와 무관한 hard limit 48 nodes, 96 edges, 32 subgraphs, depth 8, endpoint, ID, label, parent forest, membership을 다시 검증합니다.
 - invalid/unsupported syntax는 line/column이 있는 오류로 fail-closed 처리합니다.
 - 입력 검증·파싱·렌더 실패는 stdout에 아무것도 기록하지 않습니다. OS·pipe·writer가 실제 쓰기 도중 실패한 경우에는 이미 전달된 byte를 회수할 수 없으므로 exit code 1과 stderr 진단으로 알립니다.
 - label의 terminal control·bidi·format 문자는 렌더 전에 거부합니다.
@@ -16,8 +16,10 @@
 - `CGO_ENABLED=0`, `GOPROXY=off`에서 build/test할 수 있으며 `go list -m all`은 자기 모듈 하나만 출력해야 합니다.
 - map은 lookup에만 사용하고 배치·출력 순서는 source-order slice로 결정합니다.
 - Cycle feedback은 Tarjan SCC membership 안에서 source edge order대로 greedy 분류합니다. Feedback set은 inclusion-minimal이지만 minimum-cardinality라고 주장하지 않습니다.
-- Feedback route는 LR에서 아래 gutter, TD에서 오른쪽 gutter를 사용하며 label은 최대 96행의 bounded legend로 분리합니다.
+- Flat feedback route는 LR 아래 gutter와 TD 오른쪽 gutter를 사용합니다. Scoped feedback route는 frame-safe 예약 corridor와 전역 하단 perimeter를 사용하며 label은 최대 96행의 bounded legend로 분리합니다.
 - 중간 rank를 건너뛰는 forward edge도 같은 outer-route planner를 사용해 intermediate node 관통을 차단합니다.
+- Subgraph는 `Node.Scope` 단일 membership과 source-order parent forest로 표현하며 빈 subtree와 node/subgraph ID 충돌을 거부합니다.
+- Scoped layout은 LR y-band, TD x-band로 sibling frame을 분리하고 cross-scope route는 예약 corridor와 검증된 frame portal만 사용합니다.
 - Feedback은 `feedback:`, label이 있는 skip-rank forward edge는 `routed:` legend로 분리하며 두 legend 모두 output bounds에 포함합니다.
 - Canvas는 하나의 bounded flat cell buffer를 사용하며 row별 또는 edge별 full-canvas clone을 만들지 않습니다.
 

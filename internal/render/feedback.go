@@ -35,7 +35,9 @@ func hasOuterRoutes(outer []bool) bool {
 func outerEdgeMask(graph *flow.Graph, plan rankPlan) []bool {
 	outer := make([]bool, len(graph.Edges))
 	for edgeIndex, edge := range graph.Edges {
-		outer[edgeIndex] = plan.feedback[edgeIndex] || plan.ranks[edge.To] > plan.ranks[edge.From]+1
+		outer[edgeIndex] = plan.feedback[edgeIndex] ||
+			plan.ranks[edge.To] > plan.ranks[edge.From]+1 ||
+			graph.Nodes[edge.From].Scope != graph.Nodes[edge.To].Scope
 	}
 	return outer
 }

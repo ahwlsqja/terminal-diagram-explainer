@@ -1,4 +1,4 @@
-# 0.3 문법
+# 0.4 문법
 
 ## Header
 
@@ -43,10 +43,30 @@ B -.->|retry| A
 - cycle과 self-loop는 지원합니다. Feedback edge는 source edge order에 따라 결정적으로 선택되며 외곽 gutter와 `feedback:` legend로 표현됩니다.
 - 중간 rank를 건너뛰는 forward edge는 외곽 gutter를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
 
+## Subgraphs
+
+```text
+subgraph Service
+  API --> Worker
+end
+
+subgraph Data[데이터 경계]
+  Store[(Canonical store)]
+end
+```
+
+- `subgraph ID`, `subgraph ID[label]`, `subgraph ID [label]`을 지원합니다.
+- 최대 32개, 최대 중첩 깊이 8입니다.
+- Node ID와 subgraph ID는 graph 전체에서 하나의 namespace를 공유합니다.
+- 각 node는 root 또는 하나의 subgraph에 직접 소속됩니다. 기존 bare node를 다른 scope의 edge endpoint에서 참조해도 소속은 바뀌지 않습니다.
+- 빈 leaf subgraph는 거부하지만 nonempty child만 가진 parent는 허용합니다.
+- Scope를 포함한 문서에서 짝이 없는 `end`는 오류입니다. Flat 문서의 기존 `end`, `end[End]`, `end --> A` node 문법은 유지됩니다.
+- Cross-subgraph edge는 frame-safe 외곽 route를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
+
 ## Rejected input
 
 - invalid UTF-8
 - NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
 - 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
-- `classDef`, `style`, `click`, `subgraph`, HTML/Markdown labels
+- `classDef`, `style`, `click`, HTML/Markdown labels
 - sequence/ER diagrams와 방향 `RL`, `BT`

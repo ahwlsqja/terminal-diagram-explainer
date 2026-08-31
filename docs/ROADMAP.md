@@ -10,11 +10,13 @@
 - Feedback label은 inline이 아니라 bounded `feedback:` legend에 표시합니다.
 - Skip-rank forward edge도 outer route를 사용하고 label은 `routed:` legend에 표시합니다.
 
-## 2. Subgraph
+## 2. Subgraph — 완료 (0.4.0)
 
-- forest 형태의 scope model을 사용하고 graph-global node ID를 유지합니다.
-- `MaxSubgraphs=32`, `MaxSubgraphDepth=8`로 시작합니다.
-- malformed `end`, duplicate membership, cross-subgraph edge, nested CJK label을 property/golden test로 고정합니다.
+- `Node.Scope` 단일 membership과 source-order parent forest를 사용하고 graph-global node ID를 유지합니다.
+- `MaxSubgraphs=32`, `MaxSubgraphDepth=8`, `ScopeRef` representability guard를 적용합니다.
+- LR y-band, TD x-band, 중첩 frame, child-only parent를 지원합니다.
+- Cross-scope·feedback·skip-rank edge는 frame-safe corridor와 방향별 portal을 사용합니다.
+- malformed `end`, duplicate membership, cross-subgraph edge, nested CJK label, long TD inline label을 parser/property/golden test로 고정합니다.
 
 ## 3. Sequence Diagram
 
