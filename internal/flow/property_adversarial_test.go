@@ -358,7 +358,7 @@ B -.->|three| C`
 	}
 }
 
-func TestCycleCrossesParseBoundaryAndIsRejectedByRenderer(t *testing.T) {
+func TestCycleCrossesParseBoundaryAndRendersFeedback(t *testing.T) {
 	for name, source := range map[string]string{
 		"two-node cycle": "flowchart LR\nA --> B\nB --> A",
 		"self cycle":     "flowchart TD\nA --> A",
@@ -368,8 +368,12 @@ func TestCycleCrossesParseBoundaryAndIsRejectedByRenderer(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parser should preserve graph structure for renderer validation: %v", err)
 			}
-			if _, err := render.Flow(graph, render.DefaultOptions()); err == nil || !strings.Contains(err.Error(), "순환 graph") {
-				t.Fatalf("render error = %v, want cycle rejection", err)
+			output, err := render.Flow(graph, render.DefaultOptions())
+			if err != nil {
+				t.Fatalf("cycle render error = %v", err)
+			}
+			if !strings.Contains(output, "feedback:") {
+				t.Fatalf("feedback legend missing:\n%s", output)
 			}
 		})
 	}

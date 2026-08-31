@@ -37,13 +37,66 @@ Validate -.->|no| Drop[거부 + 관측]`
 	}
 }
 
-func TestFlowRejectsCycle(t *testing.T) {
-	graph, err := flow.Parse("flowchart LR\nA --> B\nB --> A", flow.DefaultLimits())
+func TestFlowRendersCycle(t *testing.T) {
+	graph, err := flow.Parse("flowchart LR\nA --> B\nB -->|return| A", flow.DefaultLimits())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Flow(graph, DefaultOptions()); err == nil {
-		t.Fatal("expected cycle error")
+	output, err := Flow(graph, DefaultOptions())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"A", "B", "feedback:", "F01 B --> A |return|"} {
+		if !strings.Contains(output, want) {
+			t.Fatalf("missing %q in:\n%s", want, output)
+		}
+	}
+}
+
+func TestDAGGoldenRemainsStable(t *testing.T) {
+	tests := []struct {
+		name   string
+		source string
+		want   string
+	}{
+		{
+			name:   "LR",
+			source: "flowchart LR\nA[Start] --> B[Done]",
+			want: "┌───────┐          ┌──────┐\n" +
+				"│ Start │─────────▶│ Done │\n" +
+				"└───────┘          └──────┘",
+		},
+		{
+			name:   "TD",
+			source: "flowchart TD\nA[Start] --> B[Done]",
+			want: "┌───────┐\n" +
+				"│ Start │\n" +
+				"└───────┘\n" +
+				"    │\n" +
+				"    │\n" +
+				"    │\n" +
+				"    │\n" +
+				"    ▼\n" +
+				"┌──────┐\n" +
+				"│ Done │\n" +
+				"└──────┘",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			graph, err := flow.Parse(tt.source, flow.DefaultLimits())
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := Flow(graph, DefaultOptions())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tt.want {
+				t.Fatalf("DAG output drifted:\n--- got ---\n%s\n--- want ---\n%s", got, tt.want)
+			}
+		})
 	}
 }
 

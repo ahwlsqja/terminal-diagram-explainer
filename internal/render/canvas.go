@@ -13,7 +13,7 @@ type cell struct {
 }
 
 type canvas struct {
-	cells         [][]cell
+	cells         []cell
 	width, height int
 	usedX, usedY  int
 	ascii         bool
@@ -21,20 +21,17 @@ type canvas struct {
 
 func newCanvas(width, height int, ascii bool) (*canvas, error) {
 	if width <= 0 || height <= 0 || width > 512 || height > 512 {
-		return nil, fmt.Errorf("canvas 제한 오류: %dx%d", width, height)
+		return nil, fmt.Errorf("%w: canvas %dx%d", ErrOutputBounds, width, height)
 	}
-	cells := make([][]cell, height)
-	for y := range cells {
-		cells[y] = make([]cell, width)
-	}
+	cells := make([]cell, width*height)
 	return &canvas{cells: cells, width: width, height: height, usedX: -1, usedY: -1, ascii: ascii}, nil
 }
 
 func (c *canvas) put(x, y int, value string) error {
 	if x < 0 || y < 0 || x >= c.width || y >= c.height {
-		return fmt.Errorf("출력 경계 초과: (%d,%d), limit=%dx%d", x, y, c.width, c.height)
+		return fmt.Errorf("%w: point (%d,%d), limit=%dx%d", ErrOutputBounds, x, y, c.width, c.height)
 	}
-	c.cells[y][x] = cell{text: value}
+	c.cells[c.index(x, y)] = cell{text: value}
 	c.mark(x, y)
 	return nil
 }
@@ -50,7 +47,7 @@ func (c *canvas) putText(x, y int, text string) error {
 			if lastBaseX < 0 {
 				return fmt.Errorf("결합 문자는 label 시작에 올 수 없음")
 			}
-			c.cells[y][lastBaseX].text += string(r)
+			c.cells[c.index(lastBaseX, y)].text += string(r)
 			continue
 		}
 		if err := c.put(x, y, string(r)); err != nil {
@@ -59,9 +56,9 @@ func (c *canvas) putText(x, y int, text string) error {
 		lastBaseX = x
 		for offset := 1; offset < width; offset++ {
 			if x+offset >= c.width {
-				return fmt.Errorf("출력 폭 제한 초과")
+				return fmt.Errorf("%w: wide rune continuation", ErrOutputBounds)
 			}
-			c.cells[y][x+offset] = cell{continuation: true}
+			c.cells[c.index(x+offset, y)] = cell{continuation: true}
 			c.mark(x+offset, y)
 		}
 		x += width
@@ -95,26 +92,27 @@ func (c *canvas) vertical(x, y1, y2 int, dashed bool) error {
 
 func (c *canvas) line(x, y int, horizontal, dashed bool) error {
 	if x < 0 || y < 0 || x >= c.width || y >= c.height {
-		return fmt.Errorf("출력 경계 초과: (%d,%d)", x, y)
+		return fmt.Errorf("%w: line point (%d,%d)", ErrOutputBounds, x, y)
 	}
 	want := c.glyph(horizontal, dashed)
-	existing := c.cells[y][x].text
+	cellIndex := c.index(x, y)
+	existing := c.cells[cellIndex].text
 	if existing == "" || existing == " " {
-		c.cells[y][x] = cell{text: want}
+		c.cells[cellIndex] = cell{text: want}
 	} else if existing != want && isLine(existing) {
 		existingKind := lineKind(existing)
 		wantKind := lineKind(want)
 		switch {
 		case existingKind == wantKind && existingKind == 1:
-			c.cells[y][x] = cell{text: c.glyph(true, false)}
+			c.cells[cellIndex] = cell{text: c.glyph(true, false)}
 		case existingKind == wantKind && existingKind == 2:
-			c.cells[y][x] = cell{text: c.glyph(false, false)}
+			c.cells[cellIndex] = cell{text: c.glyph(false, false)}
 		case existingKind == 3:
 			// Keep an existing junction.
 		case c.ascii:
-			c.cells[y][x] = cell{text: "+"}
+			c.cells[cellIndex] = cell{text: "+"}
 		default:
-			c.cells[y][x] = cell{text: "┼"}
+			c.cells[cellIndex] = cell{text: "┼"}
 		}
 	}
 	c.mark(x, y)
@@ -168,25 +166,41 @@ func (c *canvas) String() string {
 		return ""
 	}
 	var output strings.Builder
+	output.Grow((c.usedX + 1) * (c.usedY + 1))
 	for y := 0; y <= c.usedY; y++ {
-		var row strings.Builder
-		for x := 0; x <= c.usedX; x++ {
-			current := c.cells[y][x]
+		lastX := c.usedX
+		for lastX >= 0 {
+			current := c.at(lastX, y)
+			if current.continuation || current.text == "" {
+				lastX--
+				continue
+			}
+			break
+		}
+		for x := 0; x <= lastX; x++ {
+			current := c.at(x, y)
 			if current.continuation {
 				continue
 			}
 			if current.text == "" {
-				row.WriteByte(' ')
+				output.WriteByte(' ')
 			} else {
-				row.WriteString(current.text)
+				output.WriteString(current.text)
 			}
 		}
-		output.WriteString(strings.TrimRight(row.String(), " "))
 		if y < c.usedY {
 			output.WriteByte('\n')
 		}
 	}
 	return strings.TrimRight(output.String(), "\n")
+}
+
+func (c *canvas) index(x, y int) int {
+	return y*c.width + x
+}
+
+func (c *canvas) at(x, y int) cell {
+	return c.cells[c.index(x, y)]
 }
 
 func isLine(value string) bool {

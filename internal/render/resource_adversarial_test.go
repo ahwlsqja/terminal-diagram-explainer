@@ -251,7 +251,7 @@ func TestAdversarialStress48Nodes96Edges(t *testing.T) {
 	assertOutputWithinLimits(t, got, options.MaxWidth, options.MaxHeight)
 }
 
-func TestAdversarialCycleRejected(t *testing.T) {
+func TestAdversarialCycleRenders(t *testing.T) {
 	graph := &flow.Graph{
 		Direction: flow.TopToBottom,
 		Nodes: []flow.Node{
@@ -266,9 +266,12 @@ func TestAdversarialCycleRejected(t *testing.T) {
 		},
 	}
 
-	_, err := Flow(graph, Options{MaxWidth: 40, MaxHeight: 40})
-	if err == nil || !strings.Contains(err.Error(), "순환") {
-		t.Fatalf("cycle error = %v, want 순환 graph rejection", err)
+	output, err := Flow(graph, Options{MaxWidth: 80, MaxHeight: 60})
+	if err != nil {
+		t.Fatalf("cycle render error = %v", err)
+	}
+	if !strings.Contains(output, "feedback:") {
+		t.Fatalf("feedback legend missing:\n%s", output)
 	}
 }
 
@@ -295,6 +298,23 @@ func TestAdversarialAllocationGrowthIsBounded(t *testing.T) {
 		t.Fatalf("allocation growth too high: small=%.0f large=%.0f limit=%.0f", smallAllocs, largeAllocs, limit)
 	}
 	t.Logf("allocations/run: 12 nodes/24 edges=%.0f, 48 nodes/96 edges=%.0f", smallAllocs, largeAllocs)
+}
+
+func TestAdversarialCycleStressAllocationAndBounds(t *testing.T) {
+	graph := cycleStressGraph(48, 96)
+	options := Options{MaxWidth: 512, MaxHeight: 512}
+	output := mustRender(t, graph, options)
+	assertOutputWithinLimits(t, output, options.MaxWidth, options.MaxHeight)
+
+	allocations := testing.AllocsPerRun(10, func() {
+		if _, err := Flow(graph, options); err != nil {
+			panic(err)
+		}
+	})
+	if allocations > 2_500 {
+		t.Fatalf("cycle allocations/run = %.0f, limit = 2500", allocations)
+	}
+	t.Logf("cycle allocations/run: %.0f", allocations)
 }
 
 func adversarialDAG(nodeCount, edgeCount int) *flow.Graph {

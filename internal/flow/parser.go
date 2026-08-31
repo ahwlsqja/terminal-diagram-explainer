@@ -206,7 +206,7 @@ func (p *statementParser) label(start int, closing string) (string, int, error) 
 		}
 		label = label[1 : len(label)-1]
 		if strings.Contains(label, "\"") {
-			return "", 0, p.errorAt(start+1, "label 내부 따옴표 escape는 v0.1에서 지원하지 않음")
+			return "", 0, p.errorAt(start+1, "label 내부 따옴표 escape는 현재 지원하지 않음")
 		}
 	} else if strings.Contains(label, "\"") {
 		return "", 0, p.errorAt(start+1, "label 따옴표는 양끝에 함께 있어야 함")

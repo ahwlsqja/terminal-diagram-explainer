@@ -2,11 +2,13 @@
 
 확장은 기능 수보다 결정성·자원 상한·terminal safety를 먼저 고정합니다.
 
-## 1. Cycle
+## 1. Cycle — 완료 (0.3.0)
 
-- SCC condensation graph와 source-order 기반 feedback edge를 사용합니다.
-- self-loop, multi-node cycle, cycle+tail, disconnected cycles를 먼저 Red test로 추가합니다.
-- `MaxWorkSteps=32,768`을 도입하고 48 nodes/96 edges의 단일 SCC를 상한 fixture로 둡니다.
+- Tarjan SCC membership과 source-edge-order greedy feedback 분류를 사용합니다.
+- LR bottom gutter, TD right gutter, self-loop, cycle+tail, disconnected cycle을 지원합니다.
+- 32,768 work-step budget과 48 nodes/96 edges 단일 SCC fixture를 검증합니다.
+- Feedback label은 inline이 아니라 bounded `feedback:` legend에 표시합니다.
+- Skip-rank forward edge도 outer route를 사용하고 label은 `routed:` legend에 표시합니다.
 
 ## 2. Subgraph
 

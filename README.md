@@ -16,13 +16,16 @@ flowchart LR
 Receive[Request] --> Validate{Valid?}
 Validate -->|yes| Store[(Canonical model)]
 Validate -.->|no| Reject[Reject + observe]
+Store -.->|retry| Validate
 ```
 
 - 방향: `LR`, `TD`, `TB`
 - 노드: `ID`, `ID[label]`, `ID{decision}`, `ID[(data store)]`
 - edge: `-->`, `-.->`, 선택적 `|label|`
 - 한 줄 chain, `%%` 주석
-- v0.1에서는 cycle, `classDef`, `subgraph`, HTML/Markdown label, sequence/ER diagram을 명시적으로 거부합니다.
+- cycle과 self-loop는 SCC 분석 후 외곽 feedback route로 렌더링하며 label은 `feedback:` legend에 표시합니다.
+- 중간 rank를 건너뛰는 edge도 node 관통을 피하도록 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
+- `classDef`, `subgraph`, HTML/Markdown label, sequence/ER diagram은 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

@@ -1,4 +1,4 @@
-# v0.1 문법
+# 0.3 문법
 
 ## Header
 
@@ -34,11 +34,14 @@ A --> B
 A -->|success| B
 A -.->|failure| C
 A --> B --> C
+A --> B
+B -.->|retry| A
 ```
 
 - `-->`는 동기·정상 흐름에 사용합니다.
 - `-.->`는 비동기·실패·보조 흐름에 사용합니다.
-- cycle은 v0.1에서 지원하지 않습니다.
+- cycle과 self-loop는 지원합니다. Feedback edge는 source edge order에 따라 결정적으로 선택되며 외곽 gutter와 `feedback:` legend로 표현됩니다.
+- 중간 rank를 건너뛰는 forward edge는 외곽 gutter를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
 
 ## Rejected input
 

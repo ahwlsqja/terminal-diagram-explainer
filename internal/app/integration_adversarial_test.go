@@ -44,6 +44,23 @@ func TestRunStdinAndFileAreEquivalent(t *testing.T) {
 	}
 }
 
+func TestRunCycleStdinAndFileAreEquivalent(t *testing.T) {
+	cycleSource := "flowchart TD\nA[Request] --> B[Worker]\nB -.->|retry| A\n"
+	fromStdin := invoke(nil, strings.NewReader(cycleSource))
+
+	path := filepath.Join(t.TempDir(), "cycle.mmd")
+	if err := os.WriteFile(path, []byte(cycleSource), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	fromFile := invoke([]string{"-f", path}, strings.NewReader("ignored"))
+	if fromStdin != fromFile {
+		t.Fatalf("stdin=%+v file=%+v", fromStdin, fromFile)
+	}
+	if fromStdin.code != 0 || fromStdin.stderr != "" || !strings.Contains(fromStdin.stdout, "F01 B -.-> A |retry|") {
+		t.Fatalf("cycle result=%+v", fromStdin)
+	}
+}
+
 func TestRunInputSizeBoundaryAndEmptyInput(t *testing.T) {
 	prefix := "flowchart LR\nA[start]\n%%"
 	exactlyAtLimit := prefix + strings.Repeat("x", MaxInputBytes-len(prefix))
@@ -113,8 +130,10 @@ func TestRunQuotesHostileFilePathOnStderr(t *testing.T) {
 }
 
 func TestRunDoesNotCommitOutputWhenRenderingFails(t *testing.T) {
-	got := invoke(nil, strings.NewReader("flowchart LR\nA --> B\nB --> A\n"))
-	if got.code != 2 || got.stdout != "" || !strings.Contains(got.stderr, "순환 graph") {
+	wideLabel := strings.Repeat("x", 96)
+	source := "flowchart LR\nA[" + wideLabel + "] --> B[" + wideLabel + "] --> C[" + wideLabel + "]\n"
+	got := invoke(nil, strings.NewReader(source))
+	if got.code != 2 || got.stdout != "" || !strings.Contains(got.stderr, "출력 폭 제한") {
 		t.Fatalf("code=%d stdout=%q stderr=%q", got.code, got.stdout, got.stderr)
 	}
 }

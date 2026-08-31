@@ -22,18 +22,27 @@ type placement struct {
 }
 
 func Flow(graph *flow.Graph, options Options) (string, error) {
-	if graph == nil || len(graph.Nodes) == 0 {
-		return "", fmt.Errorf("빈 graph")
-	}
 	if options.MaxWidth <= 0 || options.MaxHeight <= 0 {
-		return "", fmt.Errorf("출력 제한은 양수여야 함")
+		return "", fmt.Errorf("%w: limits must be positive", ErrOutputBounds)
 	}
-	ranks, maxRank, err := topologicalRanks(graph)
+	plan, err := analyzeRanksWithBudget(graph, maxGraphWorkSteps)
 	if err != nil {
 		return "", err
 	}
 
-	placements, err := place(graph, ranks, maxRank, options)
+	outer := outerEdgeMask(graph, plan)
+	placements, err := place(graph, plan.ranks, plan.maxRank, outer, options)
+	if err != nil {
+		return "", err
+	}
+	if hasOuterRoutes(outer) {
+		if graph.Direction == flow.LeftToRight {
+			shiftPlacements(placements, 2, 0)
+		} else {
+			shiftPlacements(placements, 0, 2)
+		}
+	}
+	outerRoutes, err := planOuterRoutes(graph, plan, outer, placements, options)
 	if err != nil {
 		return "", err
 	}
@@ -41,7 +50,10 @@ func Flow(graph *flow.Graph, options Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if err := drawEdges(canvas, graph, placements); err != nil {
+	if err := drawForwardEdges(canvas, graph, placements, plan.ranks, outer); err != nil {
+		return "", err
+	}
+	if err := drawOuterRoutes(canvas, outerRoutes); err != nil {
 		return "", err
 	}
 	for index, node := range graph.Nodes {
@@ -49,48 +61,10 @@ func Flow(graph *flow.Graph, options Options) (string, error) {
 			return "", err
 		}
 	}
-	return canvas.String(), nil
+	return appendOuterLegends(canvas.String(), graph, plan.feedback, outer, options)
 }
 
-func topologicalRanks(graph *flow.Graph) ([]int, int, error) {
-	indegree := make([]int, len(graph.Nodes))
-	children := make([][]int, len(graph.Nodes))
-	for _, edge := range graph.Edges {
-		indegree[edge.To]++
-		children[edge.From] = append(children[edge.From], edge.To)
-	}
-	queue := make([]int, 0, len(graph.Nodes))
-	for index, degree := range indegree {
-		if degree == 0 {
-			queue = append(queue, index)
-		}
-	}
-	ranks := make([]int, len(graph.Nodes))
-	processed := 0
-	maxRank := 0
-	for head := 0; head < len(queue); head++ {
-		current := queue[head]
-		processed++
-		for _, child := range children[current] {
-			if ranks[child] < ranks[current]+1 {
-				ranks[child] = ranks[current] + 1
-				if ranks[child] > maxRank {
-					maxRank = ranks[child]
-				}
-			}
-			indegree[child]--
-			if indegree[child] == 0 {
-				queue = append(queue, child)
-			}
-		}
-	}
-	if processed != len(graph.Nodes) {
-		return nil, 0, fmt.Errorf("순환 graph는 v0.1에서 지원하지 않음")
-	}
-	return ranks, maxRank, nil
-}
-
-func place(graph *flow.Graph, ranks []int, maxRank int, options Options) ([]placement, error) {
+func place(graph *flow.Graph, ranks []int, maxRank int, feedback []bool, options Options) ([]placement, error) {
 	groups := make([][]int, maxRank+1)
 	widths := make([]int, len(graph.Nodes))
 	for index, node := range graph.Nodes {
@@ -104,12 +78,12 @@ func place(graph *flow.Graph, ranks []int, maxRank int, options Options) ([]plac
 	}
 	placements := make([]placement, len(graph.Nodes))
 	if graph.Direction == flow.LeftToRight {
-		return placeLR(graph, groups, widths, placements, options)
+		return placeLR(graph, groups, widths, placements, ranks, feedback, options)
 	}
 	return placeTD(graph, groups, widths, placements, options)
 }
 
-func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []placement, options Options) ([]placement, error) {
+func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []placement, ranks []int, feedback []bool, options Options) ([]placement, error) {
 	columnWidths := make([]int, len(groups))
 	columnGaps := make([]int, len(groups))
 	maxCount := 0
@@ -122,9 +96,12 @@ func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []place
 		}
 		columnGaps[rank] = 10
 	}
-	for _, edge := range graph.Edges {
+	for edgeIndex, edge := range graph.Edges {
+		if feedback[edgeIndex] {
+			continue
+		}
 		labelWidth, _ := textcell.Width(edge.Label)
-		columnGaps[rankOf(groups, edge.From)] = max(columnGaps[rankOf(groups, edge.From)], labelWidth+7)
+		columnGaps[ranks[edge.From]] = max(columnGaps[ranks[edge.From]], labelWidth+7)
 	}
 	x := 0
 	for rank, group := range groups {
@@ -135,11 +112,11 @@ func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []place
 		x += columnWidths[rank] + columnGaps[rank]
 	}
 	if x-columnGaps[len(columnGaps)-1] > options.MaxWidth {
-		return nil, fmt.Errorf("출력 폭 제한 초과: 필요 %d, 제한 %d", x-columnGaps[len(columnGaps)-1], options.MaxWidth)
+		return nil, fmt.Errorf("%w: 출력 폭 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, x-columnGaps[len(columnGaps)-1], options.MaxWidth)
 	}
 	neededHeight := maxCount*6 - 3
 	if neededHeight > options.MaxHeight {
-		return nil, fmt.Errorf("출력 높이 제한 초과: 필요 %d, 제한 %d", neededHeight, options.MaxHeight)
+		return nil, fmt.Errorf("%w: 출력 높이 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, neededHeight, options.MaxHeight)
 	}
 	return placements, nil
 }
@@ -157,7 +134,7 @@ func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []place
 		maxRowWidth = max(maxRowWidth, rowWidths[rank])
 	}
 	if maxRowWidth > options.MaxWidth {
-		return nil, fmt.Errorf("출력 폭 제한 초과: 필요 %d, 제한 %d", maxRowWidth, options.MaxWidth)
+		return nil, fmt.Errorf("%w: 출력 폭 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, maxRowWidth, options.MaxWidth)
 	}
 	for rank, group := range groups {
 		x := (maxRowWidth - rowWidths[rank]) / 2
@@ -168,29 +145,32 @@ func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []place
 	}
 	neededHeight := len(groups)*8 - 5
 	if neededHeight > options.MaxHeight {
-		return nil, fmt.Errorf("출력 높이 제한 초과: 필요 %d, 제한 %d", neededHeight, options.MaxHeight)
+		return nil, fmt.Errorf("%w: 출력 높이 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, neededHeight, options.MaxHeight)
 	}
 	return placements, nil
 }
 
-func rankOf(groups [][]int, node int) int {
-	for rank, group := range groups {
-		for _, current := range group {
-			if current == node {
-				return rank
-			}
-		}
-	}
-	return 0
-}
-
-func drawEdges(canvas *canvas, graph *flow.Graph, placements []placement) error {
+func drawForwardEdges(canvas *canvas, graph *flow.Graph, placements []placement, ranks []int, feedback []bool) error {
 	type edgeLabel struct {
 		x, y int
 		text string
 	}
 	labels := make([]edgeLabel, 0, len(graph.Edges))
-	for _, edge := range graph.Edges {
+	rankRight := make([]int, 0)
+	if graph.Direction == flow.LeftToRight {
+		maxRank := 0
+		for _, rank := range ranks {
+			maxRank = max(maxRank, rank)
+		}
+		rankRight = make([]int, maxRank+1)
+		for nodeIndex, current := range placements {
+			rankRight[ranks[nodeIndex]] = max(rankRight[ranks[nodeIndex]], current.x+current.width)
+		}
+	}
+	for edgeIndex, edge := range graph.Edges {
+		if feedback[edgeIndex] {
+			continue
+		}
 		from := placements[edge.From]
 		to := placements[edge.To]
 		if graph.Direction == flow.LeftToRight {
@@ -211,7 +191,10 @@ func drawEdges(canvas *canvas, graph *flow.Graph, placements []placement) error 
 				}
 				continue
 			}
-			laneX := startX + 2
+			laneX := rankRight[ranks[edge.From]] + 2
+			if laneX >= endX {
+				return fmt.Errorf("%w: LR forward rail has no gap", ErrLayout)
+			}
 			if err := canvas.horizontal(startX, laneX, startY, edge.Dashed); err != nil {
 				return err
 			}
