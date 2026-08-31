@@ -1,0 +1,20 @@
+{
+  "name": "terminal-diagrams",
+  "interface": {
+    "displayName": "Terminal Diagrams"
+  },
+  "plugins": [
+    {
+      "name": "terminal-diagram-explainer",
+      "source": {
+        "source": "local",
+        "path": "./plugins/terminal-diagram-explainer"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
