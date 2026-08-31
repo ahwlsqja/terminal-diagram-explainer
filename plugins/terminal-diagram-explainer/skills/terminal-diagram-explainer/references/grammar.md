@@ -52,6 +52,15 @@ opt audit
 end
 ```
 
-Structured fragment limits: 32 fragments, nesting depth 8, 192 total message/control steps. `loop` and `opt` have one nonempty branch. `alt` requires exactly one `else` and both branches must contain a message.
+Structured fragment limits: 32 fragments, nesting depth 8, 256 total message/control steps. `loop` and `opt` have one nonempty branch. `alt` requires exactly one `else` and both branches must contain a message.
 
-Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence activation/notes/`par`, ER, `RL`, `BT`.
+```text
+activate API
+Client ->> API: request
+API -->> Client: response
+deactivate API
+```
+
+Explicit activation limits: 96 starts, per-participant LIFO depth 8. A pair must contain a message and cannot cross a fragment open, branch, or end boundary. It is a visual serialized-timeline interval, not proof of a runtime call stack.
+
+Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence notes/`par`, ER, `RL`, `BT`.

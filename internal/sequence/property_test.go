@@ -13,6 +13,8 @@ func FuzzParseNoPanic(f *testing.F) {
 		"sequenceDiagram\nparticipant A\nA -->> A: return",
 		"sequenceDiagram\nparticipant A\nloop retry\nA ->> A: x\nend",
 		"sequenceDiagram\nparticipant A\nalt ok\nA ->> A: yes\nelse no\nA -->> A: no\nend",
+		"sequenceDiagram\nparticipant A\nactivate A\nA ->> A: x\ndeactivate A",
+		"sequenceDiagram\nparticipant A\nalt yes\nactivate A\nA ->> A: x\ndeactivate A\nelse no\nA ->> A: y\nend",
 		"sequenceDiagram;\nparticipant A\nA ->> A: x",
 		"\xff\xfe",
 	} {

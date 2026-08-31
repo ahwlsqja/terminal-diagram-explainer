@@ -312,6 +312,10 @@ func TestParseSequenceRejectsInvalidLimitsWithoutPanic(t *testing.T) {
 		{"negative lines", func(limits *sequence.Limits) { limits.MaxLines = -1 }},
 		{"zero source bytes", func(limits *sequence.Limits) { limits.MaxSourceBytes = 0 }},
 		{"negative source bytes", func(limits *sequence.Limits) { limits.MaxSourceBytes = -1 }},
+		{"zero activations", func(limits *sequence.Limits) { limits.MaxActivations = 0 }},
+		{"negative activations", func(limits *sequence.Limits) { limits.MaxActivations = -1 }},
+		{"zero activation depth", func(limits *sequence.Limits) { limits.MaxActivationDepth = 0 }},
+		{"negative activation depth", func(limits *sequence.Limits) { limits.MaxActivationDepth = -1 }},
 		{"MaxInt", func(limits *sequence.Limits) {
 			limits.MaxLines = math.MaxInt
 			limits.MaxParticipants = math.MaxInt
@@ -319,6 +323,8 @@ func TestParseSequenceRejectsInvalidLimitsWithoutPanic(t *testing.T) {
 			limits.MaxIDBytes = math.MaxInt
 			limits.MaxLabelCells = math.MaxInt
 			limits.MaxSourceBytes = math.MaxInt
+			limits.MaxActivations = math.MaxInt
+			limits.MaxActivationDepth = math.MaxInt
 		}},
 	}
 	for _, tt := range tests {

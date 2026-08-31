@@ -36,6 +36,12 @@ type fragmentFrame struct {
 	sawElse        bool
 }
 
+type activationOpen struct {
+	line         int
+	column       int
+	messageCount int
+}
+
 func Parse(source string, limits Limits) (*Diagram, error) {
 	if err := validateLimits(limits); err != nil {
 		return nil, err
@@ -63,10 +69,12 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	participants := make(map[string]int)
 	labels := make(map[string]struct{})
 	fragments := make([]fragmentFrame, 0)
+	activations := make([][]activationOpen, 0)
 	headerFound := false
 	timelineStarted := false
 	messageCount := 0
 	fragmentCount := 0
+	activationCount := 0
 	for index, raw := range rawLines {
 		line := normalizeSourceLine(raw, index+1)
 		if line.text == "" || strings.HasPrefix(line.text, "%%") {
@@ -100,6 +108,7 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			participants[participant.ID] = len(diagram.Participants)
 			labels[participant.Label] = struct{}{}
 			diagram.Participants = append(diagram.Participants, participant)
+			activations = append(activations, nil)
 			continue
 		}
 
@@ -148,6 +157,15 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			_, _, _, _, messageErr := parseMessage(line, limits)
 			return nil, messageErr
 		}
+		if step.Kind == ActivateStep || step.Kind == DeactivateStep {
+			participantID := step.Label
+			participantIndex, exists := participants[participantID]
+			if !exists {
+				return nil, sequenceError(line, activationIDColumn(line.text, step.Kind), "선언되지 않은 activation participant")
+			}
+			step.Participant = participantIndex
+			step.Label = ""
+		}
 		if len(diagram.Steps) == 0 && diagram.Steps == nil {
 			if len(diagram.Messages)+1 > limits.MaxSteps {
 				return nil, sequenceError(line, 1, "step 수 제한 초과")
@@ -164,6 +182,9 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 		}
 		switch step.Kind {
 		case FragmentStartStep:
+			if !activationStacksEmpty(activations) {
+				return nil, sequenceError(line, 1, "activation은 fragment 경계를 넘을 수 없음")
+			}
 			if fragmentCount >= limits.MaxFragments {
 				return nil, sequenceError(line, 1, "fragment 수 제한 초과")
 			}
@@ -177,6 +198,9 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			})
 			fragmentCount++
 		case FragmentBranchStep:
+			if !activationStacksEmpty(activations) {
+				return nil, sequenceError(line, 1, "activation은 fragment branch를 넘을 수 없음")
+			}
 			if len(fragments) == 0 {
 				return nil, sequenceError(line, 1, "열린 alt fragment가 없는 `else`")
 			}
@@ -193,6 +217,9 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			frame.branchMessages = 0
 			frame.sawElse = true
 		case FragmentEndStep:
+			if !activationStacksEmpty(activations) {
+				return nil, sequenceError(line, 1, "activation은 fragment 경계를 넘을 수 없음")
+			}
 			if len(fragments) == 0 {
 				return nil, sequenceError(line, 1, "열린 fragment가 없는 `end`")
 			}
@@ -204,6 +231,29 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 				return nil, sequenceError(line, 1, "alt fragment에는 `else`가 필요함")
 			}
 			fragments = fragments[:len(fragments)-1]
+		case ActivateStep:
+			if activationCount >= limits.MaxActivations {
+				return nil, sequenceError(line, activationIDColumn(line.text, step.Kind), "activation 수 제한 초과")
+			}
+			stack := activations[step.Participant]
+			if len(stack) >= limits.MaxActivationDepth {
+				return nil, sequenceError(line, activationIDColumn(line.text, step.Kind), "activation 중첩 깊이 제한 초과")
+			}
+			activations[step.Participant] = append(stack, activationOpen{
+				line: line.lineNo, column: line.baseColumn,
+				messageCount: messageCount,
+			})
+			activationCount++
+		case DeactivateStep:
+			stack := activations[step.Participant]
+			if len(stack) == 0 {
+				return nil, sequenceError(line, 1, "대응하는 activate가 없는 deactivate")
+			}
+			open := stack[len(stack)-1]
+			if messageCount == open.messageCount {
+				return nil, sequenceError(line, 1, "message가 없는 activation은 허용하지 않음")
+			}
+			activations[step.Participant] = stack[:len(stack)-1]
 		}
 		diagram.Steps = append(diagram.Steps, step)
 		timelineStarted = true
@@ -219,6 +269,9 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 		frame := fragments[len(fragments)-1]
 		return nil, &ParseError{Line: frame.openLine, Column: frame.openColumn, Message: "fragment를 닫는 `end`가 없음"}
 	}
+	if line, column, active := firstOpenActivation(activations); active {
+		return nil, &ParseError{Line: line, Column: column, Message: "대응하는 deactivate가 없음"}
+	}
 	if messageCount == 0 {
 		return nil, &ParseError{Line: 1, Column: 1, Message: "message가 없음"}
 	}
@@ -228,7 +281,8 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 func validateLimits(limits Limits) error {
 	if limits.MaxSourceBytes <= 0 || limits.MaxLines <= 0 || limits.MaxParticipants <= 0 ||
 		limits.MaxMessages <= 0 || limits.MaxSteps <= 0 || limits.MaxFragments <= 0 ||
-		limits.MaxFragmentDepth <= 0 || limits.MaxIDBytes <= 0 || limits.MaxLabelCells <= 0 {
+		limits.MaxFragmentDepth <= 0 || limits.MaxActivations <= 0 || limits.MaxActivationDepth <= 0 ||
+		limits.MaxIDBytes <= 0 || limits.MaxLabelCells <= 0 {
 		return &ParseError{Line: 1, Column: 1, Message: "모든 parser 제한은 양수여야 함"}
 	}
 	return nil
@@ -258,7 +312,35 @@ func parseFragmentControl(line sourceLine, limits Limits) (Step, bool, error) {
 	if line.text == "end" {
 		return Step{Kind: FragmentEndStep}, true, nil
 	}
-	for _, unsupported := range []string{"par", "and", "activate", "deactivate"} {
+	for _, activation := range []struct {
+		keyword string
+		kind    StepKind
+	}{
+		{keyword: "activate", kind: ActivateStep},
+		{keyword: "deactivate", kind: DeactivateStep},
+	} {
+		if !hasKeyword(line.text, activation.keyword) {
+			continue
+		}
+		pos := len(activation.keyword)
+		if pos >= len(line.text) || !isHSpace(line.text[pos]) {
+			return Step{}, true, sequenceError(line, pos+1, fmt.Sprintf("`%s` participant가 필요함", activation.keyword))
+		}
+		pos = skipHSpace(line.text, pos)
+		idStart := pos
+		id, next := scanID(line.text, pos, false)
+		if id == "" {
+			return Step{}, true, sequenceError(line, idStart+1, fmt.Sprintf("`%s` participant가 필요함", activation.keyword))
+		}
+		if err := validateID(id, limits.MaxIDBytes); err != nil {
+			return Step{}, true, sequenceError(line, idStart+1, err.Error())
+		}
+		if next != len(line.text) {
+			return Step{}, true, sequenceError(line, next+1, fmt.Sprintf("지원하지 않는 `%s` 문법", activation.keyword))
+		}
+		return Step{Kind: activation.kind, Label: id}, true, nil
+	}
+	for _, unsupported := range []string{"par", "and"} {
 		if hasKeyword(line.text, unsupported) {
 			return Step{}, true, sequenceError(line, 1, fmt.Sprintf("`%s`는 현재 지원하지 않음", unsupported))
 		}
@@ -291,6 +373,35 @@ func parseFragmentControl(line sourceLine, limits Limits) (Step, bool, error) {
 		return Step{Kind: candidate.kind, Fragment: candidate.fragment, Label: label}, true, nil
 	}
 	return Step{}, false, nil
+}
+
+func activationIDColumn(line string, kind StepKind) int {
+	keyword := "activate"
+	if kind == DeactivateStep {
+		keyword = "deactivate"
+	}
+	return skipHSpace(line, len(keyword)) + 1
+}
+
+func activationStacksEmpty(stacks [][]activationOpen) bool {
+	for _, stack := range stacks {
+		if len(stack) != 0 {
+			return false
+		}
+	}
+	return true
+}
+
+func firstOpenActivation(stacks [][]activationOpen) (int, int, bool) {
+	line, column := 0, 0
+	for _, stack := range stacks {
+		for _, open := range stack {
+			if line == 0 || open.line < line || open.line == line && open.column < column {
+				line, column = open.line, open.column
+			}
+		}
+	}
+	return line, column, line != 0
 }
 
 func hasKeyword(line, keyword string) bool {

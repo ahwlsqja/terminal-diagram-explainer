@@ -14,6 +14,8 @@ const (
 	FragmentStartStep
 	FragmentBranchStep
 	FragmentEndStep
+	ActivateStep
+	DeactivateStep
 )
 
 type FragmentKind uint8
@@ -37,10 +39,11 @@ type Message struct {
 }
 
 type Step struct {
-	Kind     StepKind
-	Message  Message
-	Fragment FragmentKind
-	Label    string
+	Kind        StepKind
+	Message     Message
+	Participant int
+	Fragment    FragmentKind
+	Label       string
 }
 
 type Diagram struct {
@@ -50,27 +53,31 @@ type Diagram struct {
 }
 
 type Limits struct {
-	MaxSourceBytes   int
-	MaxLines         int
-	MaxParticipants  int
-	MaxMessages      int
-	MaxSteps         int
-	MaxFragments     int
-	MaxFragmentDepth int
-	MaxIDBytes       int
-	MaxLabelCells    int
+	MaxSourceBytes     int
+	MaxLines           int
+	MaxParticipants    int
+	MaxMessages        int
+	MaxSteps           int
+	MaxFragments       int
+	MaxFragmentDepth   int
+	MaxActivations     int
+	MaxActivationDepth int
+	MaxIDBytes         int
+	MaxLabelCells      int
 }
 
 func DefaultLimits() Limits {
 	return Limits{
-		MaxSourceBytes:   256 * 1024,
-		MaxLines:         2048,
-		MaxParticipants:  16,
-		MaxMessages:      96,
-		MaxSteps:         192,
-		MaxFragments:     32,
-		MaxFragmentDepth: 8,
-		MaxIDBytes:       64,
-		MaxLabelCells:    96,
+		MaxSourceBytes:     256 * 1024,
+		MaxLines:           2048,
+		MaxParticipants:    16,
+		MaxMessages:        96,
+		MaxSteps:           256,
+		MaxFragments:       32,
+		MaxFragmentDepth:   8,
+		MaxActivations:     96,
+		MaxActivationDepth: 8,
+		MaxIDBytes:         64,
+		MaxLabelCells:      96,
 	}
 }

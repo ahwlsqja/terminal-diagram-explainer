@@ -9,12 +9,14 @@ import (
 )
 
 const (
-	maxSequenceParticipants  = 16
-	maxSequenceMessages      = 96
-	maxSequenceSteps         = 192
-	maxSequenceFragments     = 32
-	maxSequenceFragmentDepth = 8
-	sequenceHeaderGap        = 4
+	maxSequenceParticipants    = 16
+	maxSequenceMessages        = 96
+	maxSequenceSteps           = 256
+	maxSequenceFragments       = 32
+	maxSequenceFragmentDepth   = 8
+	maxSequenceActivations     = 96
+	maxSequenceActivationDepth = 8
+	sequenceHeaderGap          = 4
 )
 
 var ErrInvalidSequence = errors.New("유효하지 않은 sequence diagram")
@@ -30,6 +32,9 @@ type sequenceMessageLayout struct {
 	railX          int
 	topY           int
 	self           bool
+	attachFrom     int
+	attachTo       int
+	customAttach   bool
 }
 
 type sequenceLayout struct {
@@ -132,10 +137,13 @@ type sequenceFrameTrace struct {
 }
 
 type sequenceTrace struct {
-	messages []sequence.Message
-	frames   []sequenceFrameTrace
-	depth    int
-	height   int
+	messages           []sequence.Message
+	messageDepths      []sequenceMessageDepth
+	frames             []sequenceFrameTrace
+	activations        []sequenceActivationTrace
+	depth              int
+	maxActivationDepth int
+	height             int
 }
 
 type sequenceReplayFrame struct {
@@ -143,6 +151,23 @@ type sequenceReplayFrame struct {
 	kind           sequence.FragmentKind
 	branchMessages int
 	sawElse        bool
+}
+
+type sequenceMessageDepth struct {
+	from int
+	to   int
+}
+
+type sequenceActivationTrace struct {
+	participant int
+	depth       int
+	startY      int
+	endY        int
+}
+
+type sequenceActivationOpen struct {
+	traceIndex   int
+	messageCount int
 }
 
 func sequenceExtended(diagram *sequence.Diagram, options Options) (string, error) {
@@ -171,6 +196,12 @@ func sequenceExtended(diagram *sequence.Diagram, options Options) (string, error
 	}
 	for _, participant := range layout.participants {
 		if err := canvas.vertical(participant.center, 3, layout.height-1, true); err != nil {
+			return "", err
+		}
+	}
+	for _, activation := range trace.activations {
+		x := layout.participants[activation.participant].center + activation.depth - 1
+		if err := canvas.vertical(x, activation.startY, activation.endY-1, false); err != nil {
 			return "", err
 		}
 	}
@@ -246,15 +277,26 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 	}
 	trace := sequenceTrace{}
 	stack := make([]sequenceReplayFrame, 0)
+	activationStacks := make([][]sequenceActivationOpen, len(diagram.Participants))
 	rowCursor := 0
 	fragmentCount := 0
+	activationCount := 0
+	messageCount := 0
 	for stepIndex, step := range diagram.Steps {
 		switch step.Kind {
 		case sequence.MessageStep:
-			if step.Fragment != sequence.LoopFragment || step.Label != "" {
+			if step.Participant != 0 || step.Fragment != sequence.LoopFragment || step.Label != "" {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d message shape", ErrInvalidSequence, stepIndex)
 			}
+			if step.Message.From < 0 || step.Message.From >= len(diagram.Participants) || step.Message.To < 0 || step.Message.To >= len(diagram.Participants) {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d message endpoint", ErrInvalidSequence, stepIndex)
+			}
 			trace.messages = append(trace.messages, step.Message)
+			trace.messageDepths = append(trace.messageDepths, sequenceMessageDepth{
+				from: len(activationStacks[step.Message.From]),
+				to:   len(activationStacks[step.Message.To]),
+			})
+			messageCount++
 			for frameIndex := range stack {
 				stack[frameIndex].branchMessages++
 			}
@@ -264,7 +306,7 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 				rowCursor += 2
 			}
 		case sequence.FragmentStartStep:
-			if !isZeroSequenceMessage(step.Message) {
+			if step.Participant != 0 || !isZeroSequenceMessage(step.Message) || !sequenceActivationStacksEmpty(activationStacks) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d fragment shape", ErrInvalidSequence, stepIndex)
 			}
 			if step.Fragment != sequence.LoopFragment && step.Fragment != sequence.AltFragment && step.Fragment != sequence.OptFragment {
@@ -289,7 +331,7 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 			trace.depth = max(trace.depth, len(stack))
 			rowCursor++
 		case sequence.FragmentBranchStep:
-			if !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment {
+			if step.Participant != 0 || !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || !sequenceActivationStacksEmpty(activationStacks) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d branch shape", ErrInvalidSequence, stepIndex)
 			}
 			if len(stack) == 0 {
@@ -308,7 +350,7 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 			frame.sawElse = true
 			rowCursor++
 		case sequence.FragmentEndStep:
-			if !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" {
+			if step.Participant != 0 || !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || !sequenceActivationStacksEmpty(activationStacks) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d end shape", ErrInvalidSequence, stepIndex)
 			}
 			if len(stack) == 0 {
@@ -321,12 +363,49 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 			trace.frames[frame.traceIndex].bottomY = 3 + rowCursor
 			stack = stack[:len(stack)-1]
 			rowCursor++
+		case sequence.ActivateStep:
+			if !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || step.Participant < 0 || step.Participant >= len(diagram.Participants) {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d activate shape", ErrInvalidSequence, stepIndex)
+			}
+			activationCount++
+			participantStack := activationStacks[step.Participant]
+			if activationCount > maxSequenceActivations || len(participantStack) >= maxSequenceActivationDepth {
+				return sequenceTrace{}, fmt.Errorf("%w: activation limit", ErrInvalidSequence)
+			}
+			activation := sequenceActivationTrace{
+				participant: step.Participant,
+				depth:       len(participantStack) + 1,
+				startY:      3 + rowCursor,
+			}
+			trace.activations = append(trace.activations, activation)
+			activationStacks[step.Participant] = append(participantStack, sequenceActivationOpen{
+				traceIndex:   len(trace.activations) - 1,
+				messageCount: messageCount,
+			})
+			trace.maxActivationDepth = max(trace.maxActivationDepth, len(participantStack)+1)
+		case sequence.DeactivateStep:
+			if !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || step.Participant < 0 || step.Participant >= len(diagram.Participants) {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d deactivate shape", ErrInvalidSequence, stepIndex)
+			}
+			participantStack := activationStacks[step.Participant]
+			if len(participantStack) == 0 {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d unmatched deactivate", ErrInvalidSequence, stepIndex)
+			}
+			open := participantStack[len(participantStack)-1]
+			if open.messageCount == messageCount {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d empty activation", ErrInvalidSequence, stepIndex)
+			}
+			trace.activations[open.traceIndex].endY = 3 + rowCursor
+			activationStacks[step.Participant] = participantStack[:len(participantStack)-1]
 		default:
 			return sequenceTrace{}, fmt.Errorf("%w: step %d kind", ErrInvalidSequence, stepIndex)
 		}
 	}
 	if len(stack) != 0 {
 		return sequenceTrace{}, fmt.Errorf("%w: unclosed fragment", ErrInvalidSequence)
+	}
+	if !sequenceActivationStacksEmpty(activationStacks) {
+		return sequenceTrace{}, fmt.Errorf("%w: unclosed activation", ErrInvalidSequence)
 	}
 	legacyView := &sequence.Diagram{Participants: diagram.Participants, Messages: trace.messages}
 	if err := validateSequence(legacyView); err != nil {
@@ -338,6 +417,15 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 
 func isZeroSequenceMessage(message sequence.Message) bool {
 	return message.From == 0 && message.To == 0 && message.Label == "" && message.Kind == sequence.Request
+}
+
+func sequenceActivationStacksEmpty(stacks [][]sequenceActivationOpen) bool {
+	for _, stack := range stacks {
+		if len(stack) != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func validateSequenceControlLabel(label string) error {
@@ -374,7 +462,49 @@ func planSequenceExtended(diagram *sequence.Diagram, trace sequenceTrace) (seque
 		}
 	}
 	layout.height = trace.height
-	padding := trace.depth*2 + 2
+	if trace.maxActivationDepth > 0 {
+		for participantIndex := range layout.participants {
+			dx := participantIndex * trace.maxActivationDepth
+			layout.participants[participantIndex].center += dx
+			layout.participants[participantIndex].box.x += dx
+		}
+	}
+	layout.width = 0
+	for _, participant := range layout.participants {
+		layout.width = max(layout.width, participant.box.x+participant.box.width)
+	}
+	for _, activation := range trace.activations {
+		barX := layout.participants[activation.participant].center + activation.depth - 1
+		layout.width = max(layout.width, barX+1)
+	}
+	for index, message := range trace.messages {
+		current := &layout.messages[index]
+		fromX := sequenceAttachmentX(layout.participants[message.From].center, trace.messageDepths[index].from)
+		toX := sequenceAttachmentX(layout.participants[message.To].center, trace.messageDepths[index].to)
+		current.attachFrom = fromX
+		current.attachTo = toX
+		current.customAttach = true
+		labelWidth, _ := textcell.Width(message.Label)
+		if current.self {
+			current.labelX = fromX + 2
+			current.railX = fromX + max(4, labelWidth+3)
+			layout.width = max(layout.width, max(current.railX+1, current.labelX+labelWidth))
+		} else {
+			leftX, rightX := fromX, toX
+			if leftX > rightX {
+				leftX, rightX = rightX, leftX
+			}
+			if rightX-leftX < labelWidth+4 {
+				return sequenceLayout{}, fmt.Errorf("%w: activation message label clearance", ErrLayout)
+			}
+			current.labelX = leftX + (rightX-leftX-labelWidth)/2
+			layout.width = max(layout.width, max(rightX+1, current.labelX+labelWidth))
+		}
+	}
+	padding := 0
+	if trace.depth > 0 {
+		padding = trace.depth*2 + 2
+	}
 	shiftSequenceLayoutX(&layout, padding)
 	layout.width += padding * 2
 	for _, frame := range trace.frames {
@@ -397,7 +527,18 @@ func shiftSequenceLayoutX(layout *sequenceLayout, dx int) {
 	for index := range layout.messages {
 		layout.messages[index].labelX += dx
 		layout.messages[index].railX += dx
+		if layout.messages[index].customAttach {
+			layout.messages[index].attachFrom += dx
+			layout.messages[index].attachTo += dx
+		}
 	}
+}
+
+func sequenceAttachmentX(center, depth int) int {
+	if depth == 0 {
+		return center
+	}
+	return center + depth - 1
 }
 
 func drawSequenceRoutes(canvas *canvas, messages []sequence.Message, layout sequenceLayout) error {
@@ -406,6 +547,10 @@ func drawSequenceRoutes(canvas *canvas, messages []sequence.Message, layout sequ
 		dashed := message.Kind == sequence.Return
 		fromX := layout.participants[message.From].center
 		toX := layout.participants[message.To].center
+		if current.customAttach {
+			fromX = current.attachFrom
+			toX = current.attachTo
+		}
 		if current.self {
 			if err := canvas.horizontal(fromX, current.railX, current.topY, dashed); err != nil {
 				return err

@@ -126,15 +126,15 @@ func TestSequenceFragmentDirectHardLimits(t *testing.T) {
 		tooDeep.Steps = append(tooDeep.Steps, sequence.Step{Kind: sequence.FragmentEndStep})
 	}
 
-	tooManySteps := &sequence.Diagram{Participants: participant, Steps: make([]sequence.Step, 193)}
+	tooManySteps := &sequence.Diagram{Participants: participant, Steps: make([]sequence.Step, 257)}
 	for index := range tooManySteps.Steps {
 		tooManySteps.Steps[index] = sequence.Step{Kind: sequence.MessageStep, Message: message}
 	}
 
 	for name, diagram := range map[string]*sequence.Diagram{
-		"thirty three fragments":         tooManyFragments,
-		"depth nine":                     tooDeep,
-		"one hundred ninety three steps": tooManySteps,
+		"thirty three fragments":        tooManyFragments,
+		"depth nine":                    tooDeep,
+		"two hundred fifty seven steps": tooManySteps,
 	} {
 		t.Run(name, func(t *testing.T) {
 			assertSequenceErrorNoPanic(t, diagram, Options{MaxWidth: 512, MaxHeight: 512}, ErrInvalidSequence)
@@ -143,13 +143,13 @@ func TestSequenceFragmentDirectHardLimits(t *testing.T) {
 }
 
 func FuzzSequenceFragmentNoPanic(f *testing.F) {
-	for _, seed := range []uint8{0, 1, 2, 3, 4, 5, 255} {
+	for _, seed := range []uint8{0, 1, 2, 3, 4, 5, 6, 7, 8, 255} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, mode uint8) {
 		message := sequence.Message{From: 0, To: 0, Label: "x", Kind: sequence.Request}
 		diagram := &sequence.Diagram{Participants: []sequence.Participant{{ID: "A", Label: "A"}}}
-		switch mode % 6 {
+		switch mode % 9 {
 		case 0:
 			diagram.Steps = []sequence.Step{{Kind: sequence.FragmentStartStep, Fragment: sequence.LoopFragment, Label: "x"}, {Kind: sequence.MessageStep, Message: message}, {Kind: sequence.FragmentEndStep}}
 		case 1:
@@ -163,6 +163,12 @@ func FuzzSequenceFragmentNoPanic(f *testing.F) {
 			diagram.Steps = []sequence.Step{}
 		case 5:
 			diagram.Steps = []sequence.Step{{Kind: sequence.MessageStep, Message: message, Label: "ignored"}}
+		case 6:
+			diagram.Steps = []sequence.Step{{Kind: sequence.ActivateStep}, {Kind: sequence.MessageStep, Message: message}, {Kind: sequence.DeactivateStep}}
+		case 7:
+			diagram.Steps = []sequence.Step{{Kind: sequence.ActivateStep}, {Kind: sequence.DeactivateStep}, {Kind: sequence.MessageStep, Message: message}}
+		case 8:
+			diagram.Steps = []sequence.Step{{Kind: sequence.ActivateStep}, {Kind: sequence.FragmentStartStep, Fragment: sequence.LoopFragment, Label: "x"}, {Kind: sequence.MessageStep, Message: message}, {Kind: sequence.FragmentEndStep}, {Kind: sequence.DeactivateStep}}
 		}
 		defer func() {
 			if recovered := recover(); recovered != nil {

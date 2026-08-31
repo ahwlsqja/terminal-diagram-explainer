@@ -108,9 +108,26 @@ end
 - `loop`, `opt`는 하나의 nonempty branch를 가집니다.
 - `alt`는 정확히 하나의 `else`와 두 개의 nonempty branch를 가집니다.
 - Fragment와 branch label은 keyword 뒤 나머지 문자열이며 최대 96 cells입니다.
-- 최대 32 fragments, 중첩 깊이 8, message와 control을 합한 192 steps입니다.
+- 최대 32 fragments, 중첩 깊이 8, message와 control을 합한 256 steps입니다.
 - Message-only 입력은 기존 AST와 렌더링을 그대로 유지합니다. Fragment가 등장한 입력만 ordered step timeline으로 전환됩니다.
 - Fragment frame row는 title 가독성을 위해 해당 row의 lifeline을 가릴 수 있습니다. 다음 row에서 lifeline은 복원됩니다.
+
+### Explicit activation
+
+```text
+activate API
+Client ->> API: request
+API -->> Client: response
+deactivate API
+```
+
+- `activate ID`는 현재 timeline boundary에서 participant의 solid activation bar를 시작합니다.
+- `deactivate ID`는 participant별 LIFO top activation을 닫습니다.
+- 같은 participant에서 최대 depth 8, diagram 전체 최대 96 activation starts입니다.
+- Activate/deactivate 사이에는 적어도 하나의 message가 있어야 합니다.
+- Activation pair는 `loop`·`alt/else`·`opt` 시작, branch, 종료 경계를 넘을 수 없습니다. 하나의 branch 안에서 시작하고 닫는 것은 허용합니다.
+- Active message endpoint와 self-message rail은 가장 안쪽 activation bar에 붙습니다.
+- Activation은 serialized diagram의 시각적 interval이며 실제 call stack의 증명이 아닙니다.
 
 ## Rejected input
 
@@ -118,4 +135,4 @@ end
 - NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
 - 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
-- Sequence `activate`/`deactivate`, `par`/`and`, note와 ER diagrams, Flow 방향 `RL`, `BT`
+- Sequence `par`/`and`, note와 ER diagrams, Flow 방향 `RL`, `BT`

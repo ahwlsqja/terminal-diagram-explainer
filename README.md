@@ -50,8 +50,10 @@ Worker ->> Worker: record metrics
 - fan-out은 같은 sender의 연속 message, self-message는 같은 ID endpoint로 표현합니다.
 - 최대 16 participants, 96 messages입니다.
 - `loop label ... end`, `alt label ... else label ... end`, `opt label ... end`를 지원합니다.
-- 모든 fragment branch는 message를 포함해야 하며 최대 32 fragments, 중첩 깊이 8, 전체 192 steps입니다.
-- `classDef`, `style`, `click`, HTML/Markdown label, Sequence activation/note/`par`, ER diagram은 아직 명시적으로 거부합니다.
+- 모든 fragment branch는 message를 포함해야 하며 최대 32 fragments, 중첩 깊이 8, 전체 256 steps입니다.
+- `activate ID`와 `deactivate ID`는 participant별 LIFO active interval을 표시합니다. 최대 96 activations, participant별 depth 8입니다.
+- Activation pair 사이에는 message가 있어야 하고 fragment 시작·`else`·`end` 경계를 넘을 수 없습니다.
+- `classDef`, `style`, `click`, HTML/Markdown label, Sequence note/`par`, ER diagram은 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

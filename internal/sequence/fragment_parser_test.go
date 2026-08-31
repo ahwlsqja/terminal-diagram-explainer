@@ -104,7 +104,6 @@ func TestFragmentParserRejectsMalformedStructures(t *testing.T) {
 		{name: "empty opt", body: "opt x\nend", line: 4, column: 1},
 		{name: "unclosed", body: "loop x\nA ->> A: x", line: 3, column: 1},
 		{name: "unsupported par", body: "par one\nA ->> A: x\nend", line: 3, column: 1},
-		{name: "unsupported activation", body: "activate A\nA ->> A: x", line: 3, column: 1},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -126,7 +125,7 @@ func TestFragmentParserRejectsMalformedStructures(t *testing.T) {
 
 func TestFragmentParserLimits(t *testing.T) {
 	limits := sequence.DefaultLimits()
-	if limits.MaxSteps != 192 || limits.MaxFragments != 32 || limits.MaxFragmentDepth != 8 {
+	if limits.MaxSteps != 256 || limits.MaxFragments != 32 || limits.MaxFragmentDepth != 8 {
 		t.Fatalf("fragment limits=%+v", limits)
 	}
 

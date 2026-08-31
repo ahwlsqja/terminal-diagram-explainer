@@ -41,6 +41,8 @@ API -->> Client: response
 
 Retry나 결과별 응답 차이가 핵심이면 전체 호출을 복제하지 않고 `loop` 또는 `alt/else` frame으로 해당 message 구간만 묶는다.
 
+Participant가 실제로 처리 중인 구간이 source에서 확인되면 `activate`/`deactivate`로 표시할 수 있다. 단, 이를 call stack 보장으로 확대 해석하지 않고 fragment branch 안에서 pair를 완결한다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

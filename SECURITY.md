@@ -7,7 +7,8 @@
 - 입력은 256 KiB 이하입니다.
 - 최대 2,048 lines, 48 nodes, 96 edges, 32 subgraphs, 중첩 깊이 8, label 96 cells입니다.
 - Sequence Diagram은 최대 16 participants, 96 messages이며 participant와 message label은 최대 96 cells입니다.
-- Structured Sequence fragment는 최대 32개, 중첩 깊이 8, 전체 timeline 192 steps입니다.
+- Structured Sequence fragment는 최대 32개, 중첩 깊이 8이며 전체 timeline은 256 steps입니다.
+- Explicit activation은 최대 96개, participant별 LIFO depth 8입니다.
 - 기본 canvas는 240×200 cells, hard cap은 512×512 cells이며 clipping 대신 오류를 반환합니다.
 - SCC·feedback 분석은 32,768 고정 work-step budget 안에서 종료합니다.
 - 직접 구성된 `Graph`도 renderer 진입점에서 parser의 custom `Limits`와 무관한 hard limit 48 nodes, 96 edges, 32 subgraphs, depth 8, endpoint, ID, label, parent forest, membership을 다시 검증합니다.
@@ -28,6 +29,8 @@
 - Sequence layout은 participant source order와 message time order만 사용합니다. 일반 message는 label/arrow 2-row pitch, self-message는 전용 right corridor를 사용하며 fragment·activation route search는 수행하지 않습니다.
 - Message-only Sequence는 0.5 legacy fast path를 그대로 사용합니다. Fragment document만 ordered `Steps` timeline과 depth-inset frame planner를 사용합니다.
 - `loop`·`alt/else`·`opt`는 source-order presentation이며 fragment open·branch·end가 각각 전용 control row를 소비합니다. Empty branch와 malformed nesting은 fail-closed 처리합니다.
+- `activate`/`deactivate`는 행을 추가하지 않는 serialized-timeline interval입니다. Pair 사이에 message가 필요하며 fragment 시작·branch·end 경계를 넘지 못합니다.
+- Activation bar는 호출 stack의 정합성을 증명하지 않습니다. 설명 대상 source에서 실제 active lifetime이 확인될 때만 시각화합니다.
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.
 - Canvas는 하나의 bounded flat cell buffer를 사용하며 row별 또는 edge별 full-canvas clone을 만들지 않습니다.
 
