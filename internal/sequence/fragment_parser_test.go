@@ -103,7 +103,6 @@ func TestFragmentParserRejectsMalformedStructures(t *testing.T) {
 		{name: "empty branch", body: "alt x\nelse y\nA ->> A: y\nend", line: 4, column: 1},
 		{name: "empty opt", body: "opt x\nend", line: 4, column: 1},
 		{name: "unclosed", body: "loop x\nA ->> A: x", line: 3, column: 1},
-		{name: "unsupported par", body: "par one\nA ->> A: x\nend", line: 3, column: 1},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {

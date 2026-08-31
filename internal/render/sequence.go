@@ -151,6 +151,7 @@ type sequenceReplayFrame struct {
 	kind           sequence.FragmentKind
 	branchMessages int
 	sawElse        bool
+	branchCount    int
 }
 
 type sequenceMessageDepth struct {
@@ -285,7 +286,7 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 	for stepIndex, step := range diagram.Steps {
 		switch step.Kind {
 		case sequence.MessageStep:
-			if step.Participant != 0 || step.Fragment != sequence.LoopFragment || step.Label != "" {
+			if step.Participant != 0 || step.Fragment != sequence.LoopFragment || step.Branch != sequence.ElseBranch || step.Label != "" {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d message shape", ErrInvalidSequence, stepIndex)
 			}
 			if step.Message.From < 0 || step.Message.From >= len(diagram.Participants) || step.Message.To < 0 || step.Message.To >= len(diagram.Participants) {
@@ -306,10 +307,10 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 				rowCursor += 2
 			}
 		case sequence.FragmentStartStep:
-			if step.Participant != 0 || !isZeroSequenceMessage(step.Message) || !sequenceActivationStacksEmpty(activationStacks) {
+			if step.Participant != 0 || step.Branch != sequence.ElseBranch || !isZeroSequenceMessage(step.Message) || !sequenceActivationStacksEmpty(activationStacks) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d fragment shape", ErrInvalidSequence, stepIndex)
 			}
-			if step.Fragment != sequence.LoopFragment && step.Fragment != sequence.AltFragment && step.Fragment != sequence.OptFragment {
+			if step.Fragment != sequence.LoopFragment && step.Fragment != sequence.AltFragment && step.Fragment != sequence.OptFragment && step.Fragment != sequence.ParFragment {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d fragment kind", ErrInvalidSequence, stepIndex)
 			}
 			if err := validateSequenceControlLabel(step.Label); err != nil {
@@ -338,7 +339,23 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d root branch", ErrInvalidSequence, stepIndex)
 			}
 			frame := &stack[len(stack)-1]
-			if frame.kind != sequence.AltFragment || frame.sawElse || frame.branchMessages == 0 {
+			if frame.branchMessages == 0 {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d empty branch", ErrInvalidSequence, stepIndex)
+			}
+			switch frame.kind {
+			case sequence.AltFragment:
+				if step.Branch != sequence.ElseBranch {
+					return sequenceTrace{}, fmt.Errorf("%w: step %d alt branch kind", ErrInvalidSequence, stepIndex)
+				}
+				if frame.sawElse {
+					return sequenceTrace{}, fmt.Errorf("%w: step %d duplicate alt branch", ErrInvalidSequence, stepIndex)
+				}
+				frame.sawElse = true
+			case sequence.ParFragment:
+				if step.Branch != sequence.AndBranch {
+					return sequenceTrace{}, fmt.Errorf("%w: step %d par branch kind", ErrInvalidSequence, stepIndex)
+				}
+			default:
 				return sequenceTrace{}, fmt.Errorf("%w: step %d invalid branch", ErrInvalidSequence, stepIndex)
 			}
 			if err := validateSequenceControlLabel(step.Label); err != nil {
@@ -347,10 +364,10 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 			traceFrame := &trace.frames[frame.traceIndex]
 			traceFrame.separators = append(traceFrame.separators, sequenceBranchTrace{label: step.Label, y: 3 + rowCursor})
 			frame.branchMessages = 0
-			frame.sawElse = true
+			frame.branchCount++
 			rowCursor++
 		case sequence.FragmentEndStep:
-			if step.Participant != 0 || !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || !sequenceActivationStacksEmpty(activationStacks) {
+			if step.Participant != 0 || step.Branch != sequence.ElseBranch || !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || !sequenceActivationStacksEmpty(activationStacks) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d end shape", ErrInvalidSequence, stepIndex)
 			}
 			if len(stack) == 0 {
@@ -360,11 +377,14 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 			if frame.branchMessages == 0 || frame.kind == sequence.AltFragment && !frame.sawElse {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d incomplete fragment", ErrInvalidSequence, stepIndex)
 			}
+			if frame.kind == sequence.ParFragment && frame.branchCount == 0 {
+				return sequenceTrace{}, fmt.Errorf("%w: step %d par without branch", ErrInvalidSequence, stepIndex)
+			}
 			trace.frames[frame.traceIndex].bottomY = 3 + rowCursor
 			stack = stack[:len(stack)-1]
 			rowCursor++
 		case sequence.ActivateStep:
-			if !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || step.Participant < 0 || step.Participant >= len(diagram.Participants) {
+			if step.Branch != sequence.ElseBranch || !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || step.Participant < 0 || step.Participant >= len(diagram.Participants) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d activate shape", ErrInvalidSequence, stepIndex)
 			}
 			activationCount++
@@ -384,7 +404,7 @@ func validateSequenceSteps(diagram *sequence.Diagram) (sequenceTrace, error) {
 			})
 			trace.maxActivationDepth = max(trace.maxActivationDepth, len(participantStack)+1)
 		case sequence.DeactivateStep:
-			if !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || step.Participant < 0 || step.Participant >= len(diagram.Participants) {
+			if step.Branch != sequence.ElseBranch || !isZeroSequenceMessage(step.Message) || step.Fragment != sequence.LoopFragment || step.Label != "" || step.Participant < 0 || step.Participant >= len(diagram.Participants) {
 				return sequenceTrace{}, fmt.Errorf("%w: step %d deactivate shape", ErrInvalidSequence, stepIndex)
 			}
 			participantStack := activationStacks[step.Participant]
@@ -512,7 +532,7 @@ func planSequenceExtended(diagram *sequence.Diagram, trace sequenceTrace) (seque
 		titleWidth, _ := textcell.Width(sequenceFrameTitle(frame.kind, frame.label))
 		layout.width = max(layout.width, depthInset*2+titleWidth+4)
 		for _, separator := range frame.separators {
-			labelWidth, _ := textcell.Width("else: " + separator.label)
+			labelWidth, _ := textcell.Width(sequenceBranchTitle(frame.kind, separator.label))
 			layout.width = max(layout.width, depthInset*2+labelWidth+4)
 		}
 	}
@@ -645,7 +665,7 @@ func drawSequenceFrameLabels(canvas *canvas, frame sequenceFrameTrace) error {
 		return err
 	}
 	for _, separator := range frame.separators {
-		if err := canvas.putText(leftX+2, separator.y, "else: "+separator.label); err != nil {
+		if err := canvas.putText(leftX+2, separator.y, sequenceBranchTitle(frame.kind, separator.label)); err != nil {
 			return err
 		}
 	}
@@ -657,8 +677,16 @@ func sequenceFrameTitle(kind sequence.FragmentKind, label string) string {
 		sequence.LoopFragment: "loop: ",
 		sequence.AltFragment:  "alt: ",
 		sequence.OptFragment:  "opt: ",
+		sequence.ParFragment:  "par (display order only): ",
 	}[kind]
 	return prefix + label
+}
+
+func sequenceBranchTitle(kind sequence.FragmentKind, label string) string {
+	if kind == sequence.ParFragment {
+		return "and: " + label
+	}
+	return "else: " + label
 }
 
 func planSequence(diagram *sequence.Diagram) (sequenceLayout, error) {

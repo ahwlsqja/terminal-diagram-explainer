@@ -129,10 +129,27 @@ deactivate API
 - Active message endpoint와 self-message rail은 가장 안쪽 activation bar에 붙습니다.
 - Activation은 serialized diagram의 시각적 interval이며 실제 call stack의 증명이 아닙니다.
 
+### Parallel branch presentation
+
+```text
+par notify by email
+  API ->> Email: send
+and notify by sms
+  API ->> SMS: send
+and audit
+  API ->> API: record
+end
+```
+
+- `par`는 최소 하나의 `and`를 포함해 두 개 이상의 nonempty branch를 가집니다.
+- 각 branch 내부 message 순서는 의미가 있지만, branch 사이의 세로/source 순서는 display order일 뿐 실행 순서나 happens-before를 뜻하지 않습니다.
+- Renderer는 frame title에 `par (display order only)`를 항상 표시합니다.
+- Activation pair는 하나의 `par` branch 안에서 완결되어야 하며 `and` 경계를 넘을 수 없습니다.
+
 ## Rejected input
 
 - invalid UTF-8
 - NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
 - 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
-- Sequence `par`/`and`, note와 ER diagrams, Flow 방향 `RL`, `BT`
+- Sequence note와 ER diagrams, Flow 방향 `RL`, `BT`

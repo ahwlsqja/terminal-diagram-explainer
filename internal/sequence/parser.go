@@ -34,6 +34,7 @@ type fragmentFrame struct {
 	openColumn     int
 	branchMessages int
 	sawElse        bool
+	branchCount    int
 }
 
 type activationOpen struct {
@@ -205,17 +206,25 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 				return nil, sequenceError(line, 1, "열린 alt fragment가 없는 `else`")
 			}
 			frame := &fragments[len(fragments)-1]
-			if frame.kind != AltFragment {
-				return nil, sequenceError(line, 1, "`else`는 alt fragment에서만 허용함")
-			}
-			if frame.sawElse {
-				return nil, sequenceError(line, 1, "alt fragment의 `else`가 중복됨")
+			switch {
+			case frame.kind == AltFragment && step.Branch == ElseBranch:
+				if frame.sawElse {
+					return nil, sequenceError(line, 1, "alt fragment의 `else`가 중복됨")
+				}
+				frame.sawElse = true
+			case frame.kind == ParFragment && step.Branch == AndBranch:
+			case frame.kind == AltFragment:
+				return nil, sequenceError(line, 1, "alt fragment에서는 `else`만 허용함")
+			case frame.kind == ParFragment:
+				return nil, sequenceError(line, 1, "par fragment에서는 `and`만 허용함")
+			default:
+				return nil, sequenceError(line, 1, "fragment branch가 허용되지 않음")
 			}
 			if frame.branchMessages == 0 {
 				return nil, sequenceError(line, 1, "빈 fragment branch는 허용하지 않음")
 			}
 			frame.branchMessages = 0
-			frame.sawElse = true
+			frame.branchCount++
 		case FragmentEndStep:
 			if !activationStacksEmpty(activations) {
 				return nil, sequenceError(line, 1, "activation은 fragment 경계를 넘을 수 없음")
@@ -229,6 +238,9 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			}
 			if frame.kind == AltFragment && !frame.sawElse {
 				return nil, sequenceError(line, 1, "alt fragment에는 `else`가 필요함")
+			}
+			if frame.kind == ParFragment && frame.branchCount == 0 {
+				return nil, sequenceError(line, 1, "par fragment에는 `and`가 필요함")
 			}
 			fragments = fragments[:len(fragments)-1]
 		case ActivateStep:
@@ -340,20 +352,18 @@ func parseFragmentControl(line sourceLine, limits Limits) (Step, bool, error) {
 		}
 		return Step{Kind: activation.kind, Label: id}, true, nil
 	}
-	for _, unsupported := range []string{"par", "and"} {
-		if hasKeyword(line.text, unsupported) {
-			return Step{}, true, sequenceError(line, 1, fmt.Sprintf("`%s`는 현재 지원하지 않음", unsupported))
-		}
-	}
 	for _, candidate := range []struct {
 		keyword  string
 		kind     StepKind
 		fragment FragmentKind
+		branch   BranchKind
 	}{
 		{keyword: "loop", kind: FragmentStartStep, fragment: LoopFragment},
 		{keyword: "alt", kind: FragmentStartStep, fragment: AltFragment},
 		{keyword: "opt", kind: FragmentStartStep, fragment: OptFragment},
-		{keyword: "else", kind: FragmentBranchStep},
+		{keyword: "par", kind: FragmentStartStep, fragment: ParFragment},
+		{keyword: "else", kind: FragmentBranchStep, branch: ElseBranch},
+		{keyword: "and", kind: FragmentBranchStep, branch: AndBranch},
 	} {
 		if !hasKeyword(line.text, candidate.keyword) {
 			continue
@@ -370,7 +380,12 @@ func parseFragmentControl(line sourceLine, limits Limits) (Step, bool, error) {
 		if err := validateLabel(label, limits.MaxLabelCells); err != nil {
 			return Step{}, true, sequenceError(line, pos+1, err.Error())
 		}
-		return Step{Kind: candidate.kind, Fragment: candidate.fragment, Label: label}, true, nil
+		step := Step{Kind: candidate.kind, Fragment: candidate.fragment, Label: label}
+		if candidate.kind == FragmentBranchStep {
+			step.Branch = candidate.branch
+			step.Fragment = LoopFragment
+		}
+		return step, true, nil
 	}
 	return Step{}, false, nil
 }

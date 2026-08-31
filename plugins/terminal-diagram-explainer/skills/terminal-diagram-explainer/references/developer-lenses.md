@@ -43,6 +43,8 @@ Retry나 결과별 응답 차이가 핵심이면 전체 호출을 복제하지 �
 
 Participant가 실제로 처리 중인 구간이 source에서 확인되면 `activate`/`deactivate`로 표시할 수 있다. 단, 이를 call stack 보장으로 확대 해석하지 않고 fragment branch 안에서 pair를 완결한다.
 
+독립 branch를 `par/and`로 묶을 때는 branch 내부 순서만 설명한다. Branch의 화면상 위아래 순서를 실제 실행 순서나 happens-before로 해석하지 않는다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

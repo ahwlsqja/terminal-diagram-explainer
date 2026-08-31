@@ -49,8 +49,10 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 각 fragment branch에는 실제 message를 넣고, frame label은 조건·반복 이유를 짧게 쓴다.
 - Source에서 participant의 active lifetime이 확인되고 설명 가치가 있을 때만 `activate ID ... deactivate ID`를 사용한다.
 - Activation pair 안에는 message를 넣고 fragment 경계를 넘기지 않는다. Activation을 실제 call stack의 증거처럼 해석하지 않는다.
+- 실제로 독립 실행 가능한 branch를 함께 보여줄 때만 `par label ... and label ... end`를 사용한다.
+- `par` branch의 source/display order를 실행 순서나 happens-before로 설명하지 않는다. 각 branch 내부 순서와 frame 전후 경계만 순서 의미를 가진다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
-- 현재 버전은 class/style/click, Sequence note/`par`, ER 문법을 지원하지 않는다.
+- 현재 버전은 class/style/click, Sequence note, ER 문법을 지원하지 않는다.
 
 문법이 필요하면 [references/grammar.md](references/grammar.md)를 읽는다. 설명 관점과 예시가 필요하면 [references/developer-lenses.md](references/developer-lenses.md)를 읽는다.
 

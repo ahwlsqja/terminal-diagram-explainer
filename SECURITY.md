@@ -31,6 +31,8 @@
 - `loop`·`alt/else`·`opt`는 source-order presentation이며 fragment open·branch·end가 각각 전용 control row를 소비합니다. Empty branch와 malformed nesting은 fail-closed 처리합니다.
 - `activate`/`deactivate`는 행을 추가하지 않는 serialized-timeline interval입니다. Pair 사이에 message가 필요하며 fragment 시작·branch·end 경계를 넘지 못합니다.
 - Activation bar는 호출 stack의 정합성을 증명하지 않습니다. 설명 대상 source에서 실제 active lifetime이 확인될 때만 시각화합니다.
+- `par/and` frame은 branch를 source/display order로만 배치합니다. Branch 사이의 세로 위치는 실제 동시 실행 순서나 happens-before 관계를 주장하지 않습니다.
+- `par` title에 `display order only`를 항상 표시하고 각 branch를 `and` separator로 구분합니다. Branch는 nonempty이며 activation state를 다음 branch로 넘길 수 없습니다.
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.
 - Canvas는 하나의 bounded flat cell buffer를 사용하며 row별 또는 edge별 full-canvas clone을 만들지 않습니다.
 

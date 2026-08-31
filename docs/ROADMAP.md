@@ -32,8 +32,7 @@
 - `loop`, `alt/else`, `opt`와 nested frame을 지원합니다.
 - fragments 32, depth 8 hard limit을 parser와 renderer 양쪽에서 검증합니다.
 - Empty branch, unmatched/duplicate branch, malformed `end`, invalid direct Step variant를 fail-closed 처리합니다.
-- Explicit activation은 fragment branch state 계약을 먼저 고정한 0.6.1 확장으로 남깁니다.
-- `par/and`는 source-order가 실행 순서처럼 오해되지 않는 비시간 branch 표현을 설계한 뒤 0.7에서 검토합니다.
+- 이 단계에서는 activation과 parallel branch를 분리했고, 각각 다음 0.6.1과 0.7 단계에서 계약을 고정해 추가했습니다.
 
 ## 5. Explicit Sequence Activation — 완료 (0.6.1)
 
@@ -43,7 +42,14 @@
 - Activation은 fragment 경계를 넘지 못하며 branch 내부에서 완결되어야 합니다.
 - Active endpoint·nested bar·self rail은 actual attachment 좌표로 재계산합니다.
 
-## 6. ER Diagram
+## 6. Parallel Branch Presentation — 완료 (0.7.0)
+
+- `par/and`를 최소 두 개의 nonempty lexical branch로 지원합니다.
+- Frame title의 `display order only` marker로 branch 세로 순서가 실행 순서나 happens-before가 아님을 명시합니다.
+- `BranchKind`를 AST에 보존해 parser와 direct renderer가 `alt→else`, `par→and`를 동일하게 검증합니다.
+- Activation은 각 branch 안에서 완결되어야 하며 `and` 경계를 넘지 못합니다.
+
+## 7. ER Diagram
 
 - 초기 상한: entities 32, relationships 64, attributes total 192, entity당 32.
 - cardinality, PK/FK, self-relation, disconnected component, CJK label을 먼저 검증합니다.

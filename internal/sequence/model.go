@@ -24,6 +24,14 @@ const (
 	LoopFragment FragmentKind = iota
 	AltFragment
 	OptFragment
+	ParFragment
+)
+
+type BranchKind uint8
+
+const (
+	ElseBranch BranchKind = iota
+	AndBranch
 )
 
 type Participant struct {
@@ -43,6 +51,7 @@ type Step struct {
 	Message     Message
 	Participant int
 	Fragment    FragmentKind
+	Branch      BranchKind
 	Label       string
 }
 

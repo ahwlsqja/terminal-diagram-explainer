@@ -53,7 +53,9 @@ Worker ->> Worker: record metrics
 - 모든 fragment branch는 message를 포함해야 하며 최대 32 fragments, 중첩 깊이 8, 전체 256 steps입니다.
 - `activate ID`와 `deactivate ID`는 participant별 LIFO active interval을 표시합니다. 최대 96 activations, participant별 depth 8입니다.
 - Activation pair 사이에는 message가 있어야 하고 fragment 시작·`else`·`end` 경계를 넘을 수 없습니다.
-- `classDef`, `style`, `click`, HTML/Markdown label, Sequence note/`par`, ER diagram은 아직 명시적으로 거부합니다.
+- `par label ... and label ... end`는 독립 branch를 source/display order로 보여줍니다. 이 세로 순서는 실제 동시 실행 순서나 happens-before를 뜻하지 않습니다.
+- `par`는 최소 두 개의 nonempty branch를 요구하며 activation은 각 branch 안에서 완결되어야 합니다.
+- `classDef`, `style`, `click`, HTML/Markdown label, Sequence note, ER diagram은 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

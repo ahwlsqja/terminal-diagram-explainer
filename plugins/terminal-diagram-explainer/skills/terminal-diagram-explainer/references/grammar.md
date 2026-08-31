@@ -63,4 +63,14 @@ deactivate API
 
 Explicit activation limits: 96 starts, per-participant LIFO depth 8. A pair must contain a message and cannot cross a fragment open, branch, or end boundary. It is a visual serialized-timeline interval, not proof of a runtime call stack.
 
-Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence notes/`par`, ER, `RL`, `BT`.
+```text
+par email
+  API ->> Email: send
+and sms
+  API ->> SMS: send
+end
+```
+
+`par` requires at least two nonempty branches. The renderer labels it `par (display order only)`: branch vertical/source order is presentation order, not simultaneous execution order or a happens-before relation. Activation pairs must close inside one branch.
+
+Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence notes, ER, `RL`, `BT`.
