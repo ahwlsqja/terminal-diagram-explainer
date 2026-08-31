@@ -1,6 +1,6 @@
 {
   "name": "terminal-diagram-explainer",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "복잡한 소프트웨어 흐름을 bounded 터미널 도식과 단계별 해설로 설명합니다.",
   "author": {
     "name": "ahwlsqja"

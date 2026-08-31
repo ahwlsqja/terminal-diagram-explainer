@@ -28,6 +28,14 @@ type sourceLine struct {
 	baseColumn int
 }
 
+type fragmentFrame struct {
+	kind           FragmentKind
+	openLine       int
+	openColumn     int
+	branchMessages int
+	sawElse        bool
+}
+
 func Parse(source string, limits Limits) (*Diagram, error) {
 	if err := validateLimits(limits); err != nil {
 		return nil, err
@@ -54,8 +62,11 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	diagram := &Diagram{}
 	participants := make(map[string]int)
 	labels := make(map[string]struct{})
+	fragments := make([]fragmentFrame, 0)
 	headerFound := false
-	messagesStarted := false
+	timelineStarted := false
+	messageCount := 0
+	fragmentCount := 0
 	for index, raw := range rawLines {
 		line := normalizeSourceLine(raw, index+1)
 		if line.text == "" || strings.HasPrefix(line.text, "%%") {
@@ -70,7 +81,7 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 		}
 
 		if isParticipantDeclaration(line.text) {
-			if messagesStarted {
+			if timelineStarted {
 				return nil, sequenceError(line, 1, "participant 선언은 message보다 앞에 있어야 함")
 			}
 			participant, idColumn, labelColumn, err := parseParticipant(line, limits)
@@ -92,25 +103,110 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			continue
 		}
 
-		message, arrowColumn, senderColumn, receiverColumn, err := parseMessage(line, limits)
+		if isMessageCandidate(line.text) {
+			message, arrowColumn, senderColumn, receiverColumn, err := parseMessage(line, limits)
+			if err != nil {
+				return nil, err
+			}
+			from, exists := participants[messageSenderID(line.text)]
+			if !exists {
+				return nil, &ParseError{Line: line.lineNo, Column: senderColumn, Message: "선언되지 않은 sender participant"}
+			}
+			to, exists := participants[messageReceiverID(line.text)]
+			if !exists {
+				return nil, &ParseError{Line: line.lineNo, Column: receiverColumn, Message: "선언되지 않은 receiver participant"}
+			}
+			if messageCount >= limits.MaxMessages {
+				return nil, &ParseError{Line: line.lineNo, Column: arrowColumn, Message: "message 수 제한 초과"}
+			}
+			message.From = from
+			message.To = to
+			if diagram.Steps == nil {
+				if messageCount >= limits.MaxSteps {
+					return nil, &ParseError{Line: line.lineNo, Column: arrowColumn, Message: "step 수 제한 초과"}
+				}
+				diagram.Messages = append(diagram.Messages, message)
+			} else {
+				if len(diagram.Steps) >= limits.MaxSteps {
+					return nil, &ParseError{Line: line.lineNo, Column: arrowColumn, Message: "step 수 제한 초과"}
+				}
+				diagram.Steps = append(diagram.Steps, Step{Kind: MessageStep, Message: message})
+			}
+			messageCount++
+			for frameIndex := range fragments {
+				fragments[frameIndex].branchMessages++
+			}
+			timelineStarted = true
+			continue
+		}
+
+		step, recognized, err := parseFragmentControl(line, limits)
 		if err != nil {
 			return nil, err
 		}
-		from, exists := participants[messageSenderID(line.text)]
-		if !exists {
-			return nil, &ParseError{Line: line.lineNo, Column: senderColumn, Message: "선언되지 않은 sender participant"}
+		if !recognized {
+			_, _, _, _, messageErr := parseMessage(line, limits)
+			return nil, messageErr
 		}
-		to, exists := participants[messageReceiverID(line.text)]
-		if !exists {
-			return nil, &ParseError{Line: line.lineNo, Column: receiverColumn, Message: "선언되지 않은 receiver participant"}
+		if len(diagram.Steps) == 0 && diagram.Steps == nil {
+			if len(diagram.Messages)+1 > limits.MaxSteps {
+				return nil, sequenceError(line, 1, "step 수 제한 초과")
+			}
+			promoted := make([]Step, len(diagram.Messages), len(diagram.Messages)+1)
+			for messageIndex, message := range diagram.Messages {
+				promoted[messageIndex] = Step{Kind: MessageStep, Message: message}
+			}
+			diagram.Messages = nil
+			diagram.Steps = promoted
 		}
-		if len(diagram.Messages) >= limits.MaxMessages {
-			return nil, &ParseError{Line: line.lineNo, Column: arrowColumn, Message: "message 수 제한 초과"}
+		if len(diagram.Steps) >= limits.MaxSteps {
+			return nil, sequenceError(line, 1, "step 수 제한 초과")
 		}
-		message.From = from
-		message.To = to
-		diagram.Messages = append(diagram.Messages, message)
-		messagesStarted = true
+		switch step.Kind {
+		case FragmentStartStep:
+			if fragmentCount >= limits.MaxFragments {
+				return nil, sequenceError(line, 1, "fragment 수 제한 초과")
+			}
+			if len(fragments) >= limits.MaxFragmentDepth {
+				return nil, sequenceError(line, 1, "fragment 중첩 깊이 제한 초과")
+			}
+			fragments = append(fragments, fragmentFrame{
+				kind:       step.Fragment,
+				openLine:   line.lineNo,
+				openColumn: line.baseColumn,
+			})
+			fragmentCount++
+		case FragmentBranchStep:
+			if len(fragments) == 0 {
+				return nil, sequenceError(line, 1, "열린 alt fragment가 없는 `else`")
+			}
+			frame := &fragments[len(fragments)-1]
+			if frame.kind != AltFragment {
+				return nil, sequenceError(line, 1, "`else`는 alt fragment에서만 허용함")
+			}
+			if frame.sawElse {
+				return nil, sequenceError(line, 1, "alt fragment의 `else`가 중복됨")
+			}
+			if frame.branchMessages == 0 {
+				return nil, sequenceError(line, 1, "빈 fragment branch는 허용하지 않음")
+			}
+			frame.branchMessages = 0
+			frame.sawElse = true
+		case FragmentEndStep:
+			if len(fragments) == 0 {
+				return nil, sequenceError(line, 1, "열린 fragment가 없는 `end`")
+			}
+			frame := fragments[len(fragments)-1]
+			if frame.branchMessages == 0 {
+				return nil, sequenceError(line, 1, "빈 fragment branch는 허용하지 않음")
+			}
+			if frame.kind == AltFragment && !frame.sawElse {
+				return nil, sequenceError(line, 1, "alt fragment에는 `else`가 필요함")
+			}
+			fragments = fragments[:len(fragments)-1]
+		}
+		diagram.Steps = append(diagram.Steps, step)
+		timelineStarted = true
 	}
 
 	if !headerFound {
@@ -119,7 +215,11 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	if len(diagram.Participants) == 0 {
 		return nil, &ParseError{Line: 1, Column: 1, Message: "participant가 없음"}
 	}
-	if len(diagram.Messages) == 0 {
+	if len(fragments) > 0 {
+		frame := fragments[len(fragments)-1]
+		return nil, &ParseError{Line: frame.openLine, Column: frame.openColumn, Message: "fragment를 닫는 `end`가 없음"}
+	}
+	if messageCount == 0 {
 		return nil, &ParseError{Line: 1, Column: 1, Message: "message가 없음"}
 	}
 	return diagram, nil
@@ -127,7 +227,8 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 
 func validateLimits(limits Limits) error {
 	if limits.MaxSourceBytes <= 0 || limits.MaxLines <= 0 || limits.MaxParticipants <= 0 ||
-		limits.MaxMessages <= 0 || limits.MaxIDBytes <= 0 || limits.MaxLabelCells <= 0 {
+		limits.MaxMessages <= 0 || limits.MaxSteps <= 0 || limits.MaxFragments <= 0 ||
+		limits.MaxFragmentDepth <= 0 || limits.MaxIDBytes <= 0 || limits.MaxLabelCells <= 0 {
 		return &ParseError{Line: 1, Column: 1, Message: "모든 parser 제한은 양수여야 함"}
 	}
 	return nil
@@ -144,6 +245,55 @@ func normalizeSourceLine(raw string, lineNo int) sourceLine {
 
 func isParticipantDeclaration(line string) bool {
 	const keyword = "participant"
+	return line == keyword || strings.HasPrefix(line, keyword+" ") || strings.HasPrefix(line, keyword+"\t")
+}
+
+func isMessageCandidate(line string) bool {
+	_, pos := scanID(line, 0, true)
+	pos = skipHSpace(line, pos)
+	return pos < len(line) && (strings.HasPrefix(line[pos:], "->>") || strings.HasPrefix(line[pos:], "-->>"))
+}
+
+func parseFragmentControl(line sourceLine, limits Limits) (Step, bool, error) {
+	if line.text == "end" {
+		return Step{Kind: FragmentEndStep}, true, nil
+	}
+	for _, unsupported := range []string{"par", "and", "activate", "deactivate"} {
+		if hasKeyword(line.text, unsupported) {
+			return Step{}, true, sequenceError(line, 1, fmt.Sprintf("`%s`는 현재 지원하지 않음", unsupported))
+		}
+	}
+	for _, candidate := range []struct {
+		keyword  string
+		kind     StepKind
+		fragment FragmentKind
+	}{
+		{keyword: "loop", kind: FragmentStartStep, fragment: LoopFragment},
+		{keyword: "alt", kind: FragmentStartStep, fragment: AltFragment},
+		{keyword: "opt", kind: FragmentStartStep, fragment: OptFragment},
+		{keyword: "else", kind: FragmentBranchStep},
+	} {
+		if !hasKeyword(line.text, candidate.keyword) {
+			continue
+		}
+		pos := len(candidate.keyword)
+		if pos >= len(line.text) || !isHSpace(line.text[pos]) {
+			return Step{}, true, sequenceError(line, pos+1, fmt.Sprintf("`%s` label이 필요함", candidate.keyword))
+		}
+		pos = skipHSpace(line.text, pos)
+		label := strings.TrimSpace(line.text[pos:])
+		if label == "" {
+			return Step{}, true, sequenceError(line, pos+1, fmt.Sprintf("빈 `%s` label은 허용하지 않음", candidate.keyword))
+		}
+		if err := validateLabel(label, limits.MaxLabelCells); err != nil {
+			return Step{}, true, sequenceError(line, pos+1, err.Error())
+		}
+		return Step{Kind: candidate.kind, Fragment: candidate.fragment, Label: label}, true, nil
+	}
+	return Step{}, false, nil
+}
+
+func hasKeyword(line, keyword string) bool {
 	return line == keyword || strings.HasPrefix(line, keyword+" ") || strings.HasPrefix(line, keyword+"\t")
 }
 

@@ -39,6 +39,8 @@ Store -->> API: result
 API -->> Client: response
 ```
 
+Retry나 결과별 응답 차이가 핵심이면 전체 호출을 복제하지 않고 `loop` 또는 `alt/else` frame으로 해당 message 구간만 묶는다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

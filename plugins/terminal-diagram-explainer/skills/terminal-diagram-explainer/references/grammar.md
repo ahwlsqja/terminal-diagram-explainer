@@ -38,4 +38,20 @@ API ->> API: record metrics
 
 Sequence limits: 16 participants, 96 messages, 64-byte ID, 96-cell label. Declare all participants before messages. Endpoint references use IDs, `->>` is request, `-->>` is return, and the first `:` starts the required rest-of-line label. Repeated messages from one sender express fan-out; same endpoints express a self-message.
 
-Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence fragments/activation/notes, ER, `RL`, `BT`.
+```text
+loop retry up to 3
+  Client ->> API: request
+end
+alt accepted
+  API -->> Client: 202
+else rejected
+  API -->> Client: 400
+end
+opt audit
+  Client ->> Client: metrics
+end
+```
+
+Structured fragment limits: 32 fragments, nesting depth 8, 192 total message/control steps. `loop` and `opt` have one nonempty branch. `alt` requires exactly one `else` and both branches must contain a message.
+
+Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence activation/notes/`par`, ER, `RL`, `BT`.

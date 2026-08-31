@@ -1,4 +1,4 @@
-# 0.5 문법
+# 0.6 문법
 
 ## Header
 
@@ -87,10 +87,35 @@ Worker ->> Worker: record metrics
 - 최소 1 participant와 1 message가 필요하며 최대 16 participants, 96 messages입니다.
 - 긴 long-hop label은 전용 label row에서 중간 lifeline을 잠시 가릴 수 있습니다. Arrow row junction과 다음 row lifeline은 유지됩니다.
 
+### Structured fragments
+
+```text
+loop 최대 3회
+  Client ->> API: retry request
+end
+
+alt accepted
+  API -->> Client: 202
+else rejected
+  API -->> Client: 400
+end
+
+opt audit
+  Client ->> Client: record metrics
+end
+```
+
+- `loop`, `opt`는 하나의 nonempty branch를 가집니다.
+- `alt`는 정확히 하나의 `else`와 두 개의 nonempty branch를 가집니다.
+- Fragment와 branch label은 keyword 뒤 나머지 문자열이며 최대 96 cells입니다.
+- 최대 32 fragments, 중첩 깊이 8, message와 control을 합한 192 steps입니다.
+- Message-only 입력은 기존 AST와 렌더링을 그대로 유지합니다. Fragment가 등장한 입력만 ordered step timeline으로 전환됩니다.
+- Fragment frame row는 title 가독성을 위해 해당 row의 lifeline을 가릴 수 있습니다. 다음 row에서 lifeline은 복원됩니다.
+
 ## Rejected input
 
 - invalid UTF-8
 - NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
 - 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
-- Sequence fragment/activation/note와 ER diagrams, Flow 방향 `RL`, `BT`
+- Sequence `activate`/`deactivate`, `par`/`and`, note와 ER diagrams, Flow 방향 `RL`, `BT`

@@ -49,7 +49,9 @@ Worker ->> Worker: record metrics
 - participant는 message보다 먼저 명시적으로 선언하며 source order가 lifeline 순서입니다.
 - fan-out은 같은 sender의 연속 message, self-message는 같은 ID endpoint로 표현합니다.
 - 최대 16 participants, 96 messages입니다.
-- `classDef`, `style`, `click`, HTML/Markdown label, Sequence fragment/activation, ER diagram은 아직 명시적으로 거부합니다.
+- `loop label ... end`, `alt label ... else label ... end`, `opt label ... end`를 지원합니다.
+- 모든 fragment branch는 message를 포함해야 하며 최대 32 fragments, 중첩 깊이 8, 전체 192 steps입니다.
+- `classDef`, `style`, `click`, HTML/Markdown label, Sequence activation/note/`par`, ER diagram은 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

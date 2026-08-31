@@ -24,9 +24,18 @@
 - participants 16, messages 96, label 96 cells 상한을 parser와 renderer 양쪽에서 검증합니다.
 - request/return, fan-out, self-message, 양방향 arrow, Unicode/ASCII를 지원합니다.
 - 96개 일반 message는 2-row pitch로 기본 200행 canvas에 들어가며 self-message 혼합은 exact bounds를 넘으면 fail-closed 처리합니다.
-- fragment/activation은 별도 확장 대상으로 남깁니다.
+- 이 단계에서는 fragment와 activation을 기본 message model과 분리했고, structured fragment는 다음 0.6 단계에서 추가했습니다.
 
-## 4. ER Diagram
+## 4. Structured Sequence Fragments — 완료 (0.6.0)
+
+- Message-only legacy AST와 ordered `Steps` extended AST를 nil 기준 상호 배타 모드로 유지합니다.
+- `loop`, `alt/else`, `opt`와 nested frame을 지원합니다.
+- fragments 32, depth 8, timeline steps 192 hard limit을 parser와 renderer 양쪽에서 검증합니다.
+- Empty branch, unmatched/duplicate branch, malformed `end`, invalid direct Step variant를 fail-closed 처리합니다.
+- Explicit activation은 fragment branch state 계약을 먼저 고정한 0.6.1 확장으로 남깁니다.
+- `par/and`는 source-order가 실행 순서처럼 오해되지 않는 비시간 branch 표현을 설계한 뒤 0.7에서 검토합니다.
+
+## 5. ER Diagram
 
 - 초기 상한: entities 32, relationships 64, attributes total 192, entity당 32.
 - cardinality, PK/FK, self-relation, disconnected component, CJK label을 먼저 검증합니다.
