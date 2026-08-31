@@ -9,7 +9,7 @@ func TestWidth(t *testing.T) {
 		want int
 	}{
 		{name: "ascii", text: "API", want: 3},
-		{name: "hangul", text: "수파", want: 4},
+		{name: "hangul", text: "한글", want: 4},
 		{name: "cjk", text: "事件", want: 4},
 		{name: "combining", text: "e\u0301", want: 1},
 		{name: "fullwidth", text: "Ａ", want: 2},
