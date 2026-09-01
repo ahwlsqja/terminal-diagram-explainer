@@ -19,6 +19,15 @@ type pendingTransition struct {
 	line       int
 }
 
+type pendingPolicy struct {
+	transition Transition
+	fromID     string
+	toID       string
+	kind       PolicyKind
+	detail     string
+	line       int
+}
+
 func (e *ParseError) Error() string {
 	return fmt.Sprintf("%d행 %d열: %s", e.Line, e.Column, e.Message)
 }
@@ -58,6 +67,7 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	directionSeen := false
 	seenDeclarationOrTransition := false
 	pending := make([]pendingTransition, 0, min(effective.MaxTransitions, 64))
+	pendingPolicies := make([]pendingPolicy, 0, min(effective.MaxPolicies, 64))
 	for n, raw := range lines {
 		lineNo := n + 1
 		line := strings.Trim(raw, " \t")
@@ -103,6 +113,18 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			ids[st.ID] = len(d.States)
 			labels[st.Label] = struct{}{}
 			d.States = append(d.States, st)
+			continue
+		}
+		if strings.HasPrefix(line, "policy ") {
+			seenDeclarationOrTransition = true
+			policy, err := parsePolicy(line, lineNo, effective)
+			if err != nil {
+				return nil, err
+			}
+			pendingPolicies = append(pendingPolicies, policy)
+			if len(pendingPolicies) > effective.MaxPolicies {
+				return nil, perr(lineNo, 1, "policy 수 제한 초과")
+			}
 			continue
 		}
 		if strings.Contains(line, "-->") {
@@ -154,6 +176,36 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	if err := validateSemantics(d, transitionLines); err != nil {
 		return nil, err
 	}
+	seenPolicies := make(map[string]struct{}, len(pendingPolicies))
+	for _, pendingPolicy := range pendingPolicies {
+		policyTransition := pendingPolicy.transition
+		from, ok := ids[pendingPolicy.fromID]
+		if !ok {
+			return nil, perr(pendingPolicy.line, 1, "policy가 선언되지 않은 state ID를 참조함")
+		}
+		to, ok := ids[pendingPolicy.toID]
+		if !ok {
+			return nil, perr(pendingPolicy.line, 1, "policy가 선언되지 않은 state ID를 참조함")
+		}
+		policyTransition.From.Index = from
+		policyTransition.To.Index = to
+		transitionIndex := -1
+		for index, transition := range d.Transitions {
+			if transition == policyTransition {
+				transitionIndex = index
+				break
+			}
+		}
+		if transitionIndex < 0 {
+			return nil, perr(pendingPolicy.line, 1, "policy가 정확한 concrete transition을 참조해야 함")
+		}
+		key := fmt.Sprintf("%d/%d", transitionIndex, pendingPolicy.kind)
+		if _, exists := seenPolicies[key]; exists {
+			return nil, perr(pendingPolicy.line, 1, "중복 transition policy")
+		}
+		seenPolicies[key] = struct{}{}
+		d.Policies = append(d.Policies, TransitionPolicy{TransitionIndex: transitionIndex, Kind: pendingPolicy.kind, Detail: pendingPolicy.detail})
+	}
 	return d, nil
 }
 
@@ -171,6 +223,9 @@ func normalizeLimits(l Limits) Limits {
 	if l.MaxTransitions > 0 && l.MaxTransitions < d.MaxTransitions {
 		d.MaxTransitions = l.MaxTransitions
 	}
+	if l.MaxPolicies > 0 && l.MaxPolicies < d.MaxPolicies {
+		d.MaxPolicies = l.MaxPolicies
+	}
 	if l.MaxIDBytes > 0 && l.MaxIDBytes < d.MaxIDBytes {
 		d.MaxIDBytes = l.MaxIDBytes
 	}
@@ -181,7 +236,7 @@ func normalizeLimits(l Limits) Limits {
 }
 
 func validateLimits(l Limits) error {
-	if l.MaxBytes <= 0 || l.MaxLines <= 0 || l.MaxStates <= 0 || l.MaxTransitions <= 0 || l.MaxIDBytes <= 0 || l.MaxLabelCells <= 0 {
+	if l.MaxBytes <= 0 || l.MaxLines <= 0 || l.MaxStates <= 0 || l.MaxTransitions <= 0 || l.MaxPolicies <= 0 || l.MaxIDBytes <= 0 || l.MaxLabelCells <= 0 {
 		return perr(1, 1, "모든 제한값은 양수여야 함")
 	}
 	return nil
@@ -319,6 +374,61 @@ func parseTransition(line string, n int, l Limits) (Transition, string, string, 
 	}
 	return tr, fromID, toID, nil
 }
+
+func parsePolicy(line string, n int, limits Limits) (pendingPolicy, error) {
+	body := strings.TrimPrefix(line, "policy ")
+	type policySuffix struct {
+		text string
+		kind PolicyKind
+	}
+	suffixes := []policySuffix{
+		{text: " :: retry \"", kind: RetryPolicy},
+		{text: " :: timeout \"", kind: TimeoutPolicy},
+		{text: " :: compensation \"", kind: CompensationPolicy},
+	}
+	splitAt := -1
+	kind := InvalidPolicy
+	detail := ""
+	if strings.HasSuffix(body, "\"") {
+		for _, suffix := range suffixes {
+			index := strings.LastIndex(body, suffix.text)
+			if index < 0 || index < splitAt {
+				continue
+			}
+			detailStart := index + len(suffix.text)
+			detailEnd := len(body) - 1
+			if detailStart > detailEnd {
+				continue
+			}
+			candidate := body[detailStart:detailEnd]
+			if strings.ContainsRune(candidate, '"') {
+				continue
+			}
+			splitAt = index
+			kind = suffix.kind
+			detail = candidate
+		}
+	}
+	if splitAt < 0 {
+		return pendingPolicy{}, perr(n, 1, "policy는 `policy transition :: kind \"detail\"` 형식이어야 함")
+	}
+	transition, fromID, toID, err := parseTransition(body[:splitAt], n, limits)
+	if err != nil {
+		return pendingPolicy{}, err
+	}
+	if transition.From.Kind != StateRef || transition.To.Kind != StateRef || transition.Event == "" {
+		return pendingPolicy{}, perr(n, 1, "policy는 labeled concrete transition만 참조할 수 있음")
+	}
+	if strings.ContainsRune(transition.Event, '"') || strings.ContainsRune(transition.Guard, '"') {
+		return pendingPolicy{}, perr(n, 1, "policy가 참조하는 event와 guard에는 따옴표를 허용하지 않음")
+	}
+	width, widthErr := PolicyDetailCells(detail)
+	if widthErr != nil || width == 0 || width > limits.MaxLabelCells {
+		return pendingPolicy{}, perr(n, 1, "유효하지 않은 policy detail")
+	}
+	return pendingPolicy{transition: transition, fromID: fromID, toID: toID, kind: kind, detail: detail, line: n}, nil
+}
+
 func validateSemantics(d *Diagram, lines []int) error {
 	initial := 0
 	seen := map[string]struct{}{}

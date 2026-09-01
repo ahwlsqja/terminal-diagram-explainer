@@ -4,7 +4,7 @@
 
 구성은 두 부분으로 나뉩니다.
 
-- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence → Unicode/ASCII renderer
+- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence·ER·State → Unicode/ASCII renderer
 - `terminal-diagram-explainer`: 한 줄 결론 → 도식 → 단계별 해설 → 개발 핵심 포인트 순으로 설명하는 Codex Skill
 
 플러그인은 표현 방식만 추가하며 프로젝트의 `AGENTS.md`, SDLC, workflow 또는 repo-local Skill을 변경하지 않습니다.
@@ -97,15 +97,18 @@ Committing --> Backoff : transient failure [attempt below 3]
 Backoff --> Committing : retry
 Committing --> Acked : commit succeeds
 Acked --> [*]
+policy Backoff --> Committing : retry :: retry "attempt below 3"
 ```
 
 - Header는 exact `stateDiagram-v2`이며 optional `direction TD|LR`은 첫 declaration/transition 전에 한 번만 사용합니다.
 - State는 `state ID` 또는 `state "display label" as ID`로 명시 선언하며 transition endpoint가 state를 자동 생성하지 않습니다.
 - Concrete transition은 `A --> B`, `A --> B : event`, `A --> B : event [guard]`입니다. Event와 guard를 분리해 보존합니다.
 - Initial은 정확히 하나의 `[*] --> State`, final은 0개 이상의 `State --> [*]`이며 pseudo transition에는 label을 붙이지 않습니다.
-- 최대 32 states, 64 transitions, ID 64 bytes, state/transition label 96 cells입니다.
+- 직접 확인된 transition policy는 `policy <exact labeled transition> :: <retry|timeout|compensation> "detail"`로 별도 선언합니다. Policy는 기존 transition을 EOF에서 정확히 참조하며 state나 edge를 만들지 않습니다.
+- Policy detail은 source contract의 원문만 보존합니다. Retry 횟수·backoff, timeout 기준, compensation action·성공·원자성·idempotency를 자동 추론하지 않습니다.
+- 최대 32 states, 64 transitions, 64 policies, ID 64 bytes, state/transition/policy detail 96 cells입니다.
 - Self/cycle은 bounded connector와 `feedback:` legend로 표시하며 disconnected state도 source order로 보존합니다.
-- Composite/nested state, fork/join/choice/history, note/style, timeout·retry·compensation 정책 추론은 아직 지원하지 않습니다.
+- Composite/nested state, fork/join/choice/history, note/style과 이름 기반 정책 승격은 지원하지 않습니다. Transition label의 policy-like text는 ordinary event로만 보존하며 policy가 되지 않습니다.
 
 ## 개발 검증
 

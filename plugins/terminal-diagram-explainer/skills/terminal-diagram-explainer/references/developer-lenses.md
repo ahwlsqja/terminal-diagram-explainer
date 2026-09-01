@@ -67,6 +67,13 @@ Lifecycle은 state 목록보다 transition contract를 먼저 확인한다. Sour
 
 Event·command·method·result는 transition label 후보이지 state 후보가 아니다. State로 명시된 명사만 box로 만들고 event를 state로 승격하지 않는다.
 
+Retry·timeout·compensation policy는 event 이름과 별개로 검증한다. Exact source→target transition과 event/guard 외에 policy kind와 detail의 direct runtime contract가 있어야 별도 policy statement를 만든다.
+
+- Retry: attempt limit, backoff·jitter, 재진입 target은 각각 확인된 값만 보존한다. 하나를 확인했다고 나머지를 채우지 않는다.
+- Timeout: deadline/timer 기준과 source→target edge가 직접 있어야 한다. `onTimeout` 이름으로 duration, clock origin, cancel/reset, terminal을 만들지 않는다.
+- Compensation: trigger와 action, 성공/실패 후 state를 각각 확인한다. Action 이름만으로 전체 rollback, 성공, 원자성, idempotency를 주장하지 않는다.
+- Policy는 기존 transition의 metadata이며 state, edge, initial/final 또는 feedback 분류를 추가하지 않는다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

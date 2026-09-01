@@ -296,7 +296,8 @@ func analyze(source string) (sourceAnalysis, error) {
 			features[current.ID] = true
 			features[strings.ToLower(current.Label)] = true
 		}
-		for _, transition := range diagram.Transitions {
+		transitionTexts := make([]string, len(diagram.Transitions))
+		for index, transition := range diagram.Transitions {
 			if transition.From.Kind == state.Initial || transition.To.Kind == state.Final {
 				features["[*]"] = true
 			}
@@ -313,6 +314,13 @@ func analyze(source string) (sourceAnalysis, error) {
 				}
 			}
 			features[text] = true
+			transitionTexts[index] = text
+		}
+		for _, policy := range diagram.Policies {
+			kind := policy.Kind.String()
+			features["policy "+kind] = true
+			features[policy.Detail] = true
+			features["policy "+transitionTexts[policy.TransitionIndex]+" :: "+kind+" \""+policy.Detail+"\""] = true
 		}
 		return sourceAnalysis{kind: "state", elements: len(diagram.States), features: features}, nil
 	}

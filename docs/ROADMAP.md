@@ -102,7 +102,16 @@
 - State-to-state connector를 bounded gutter로 렌더하고 source-order greedy reachability로 cycle/self feedback을 분류합니다.
 - Forward endpoint는 EOF에서 resolve하며 undeclared state와 암묵 state 생성을 거부합니다.
 - Enum·함수·status 이름에서 transition/initial/final/guard를 추론하지 않고 fixed-18 corpus에 positive lifecycle과 negative evidence-gap을 고정합니다.
-- Composite state, fork/join/choice/history, timeout·retry·compensation 정책 의미는 다음 확장으로 남깁니다.
+- Composite state, fork/join/choice/history와 transition policy의 구조적 실행 의미는 다음 확장으로 남깁니다.
+
+## 13. Explicit Transition Policy — 완료 (0.14.0)
+
+- 기존 event/guard label을 재해석하지 않는 별도 `policy <exact transition> :: kind "detail"` statement를 추가합니다.
+- `retry`, `timeout`, `compensation` 세 kind를 지원하고 policy-before-transition을 EOF에서 endpoint·event·guard exact match로 해소합니다.
+- Policy는 transition index metadata로만 보존하며 state·edge·pseudo-state·cycle 분류를 만들거나 바꾸지 않습니다.
+- 동일 transition의 동일 kind 중복은 거부하고, 최대 64 policies와 96-cell detail hard limit을 parser와 renderer 양쪽에서 검증합니다.
+- Event·함수·enum 이름을 policy로 승격하지 않으며 fixed-18 corpus에 positive retry policy와 negative identifier-only case를 고정합니다.
+- Composite/fork/join/choice/history, timer clock origin, retry scheduler, compensation 성공·원자성·idempotency 보장은 별도 확장으로 남깁니다.
 
 ## 공통 완료 게이트
 

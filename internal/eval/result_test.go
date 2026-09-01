@@ -279,7 +279,9 @@ func TestValidateStateResultUsesParsedTransitionsNotComments(t *testing.T) {
 
 	missing := cloneResult(t, result)
 	transition := "Committing --> Backoff : transient failure [attempt below 3]"
-	missing.DiagramSource = strings.Replace(missing.DiagramSource, transition+"\n", "", 1) + "\n%% " + transition
+	policy := "policy Backoff --> Committing : retry :: retry \"attempt below 3\""
+	missing.DiagramSource = strings.Replace(missing.DiagramSource, transition+"\n", "", 1)
+	missing.DiagramSource = strings.Replace(missing.DiagramSource, policy, "", 1) + "\n%% " + transition + "\n%% " + policy
 	_, missing.Renderer, _, err = Replay(missing.DiagramSource)
 	if err != nil {
 		t.Fatal(err)
@@ -287,6 +289,17 @@ func TestValidateStateResultUsesParsedTransitionsNotComments(t *testing.T) {
 	missing.FinalAnswer = "확인된 state transition만 설명한다.\n" + missing.Renderer.Stdout
 	if err := corpus.Validate(missing); err == nil || !strings.Contains(err.Error(), "필수 표기") {
 		t.Fatalf("comment spoof error=%v", err)
+	}
+
+	missingPolicy := cloneResult(t, result)
+	missingPolicy.DiagramSource = strings.Replace(missingPolicy.DiagramSource, policy, "%% "+policy, 1)
+	_, missingPolicy.Renderer, _, err = Replay(missingPolicy.DiagramSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missingPolicy.FinalAnswer = "확인된 state transition만 설명한다.\n" + missingPolicy.Renderer.Stdout
+	if err := corpus.Validate(missingPolicy); err == nil || !strings.Contains(err.Error(), "필수 표기") {
+		t.Fatalf("policy comment spoof error=%v", err)
 	}
 
 	forbidden := cloneResult(t, result)

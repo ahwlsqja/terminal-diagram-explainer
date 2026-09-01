@@ -105,8 +105,13 @@ state Backoff
 Validating --> Committing : valid
 Committing --> Backoff : transient failure [attempt below 3]
 Backoff --> Committing : retry
+policy Backoff --> Committing : retry :: retry "attempt below 3"
 ```
 
-State limits: 32 explicit states, 64 transitions, 64-byte ID, 96-cell display label and canonical `event [guard]`, default 240×200 output. Direction is optional exact `TD|LR` before the first state or transition. Declarations are `state ID` or `state "display label" as ID`; endpoints never create implicit states. Exactly one `[*] --> State` initial is required, while zero or more `State --> [*]` finals are allowed. Concrete transitions may be unlabeled or use `: event [guard]`; pseudo transitions cannot carry labels. State connectors use bounded lanes, and cycles/self transitions are listed under `feedback:` by reachability rather than declaration order.
+State limits: 32 explicit states, 64 transitions, 64 policies, 64-byte ID, 96-cell display label, canonical `event [guard]`, and policy detail, default 240×200 output. Direction is optional exact `TD|LR` before the first state, transition, or policy. Declarations are `state ID` or `state "display label" as ID`; endpoints never create implicit states. Exactly one `[*] --> State` initial is required, while zero or more `State --> [*]` finals are allowed. Concrete transitions may be unlabeled or use `: event [guard]`; pseudo transitions cannot carry labels. State connectors use bounded lanes, and cycles/self transitions are listed under `feedback:` by reachability rather than declaration order.
 
-Unsupported State syntax fails rather than falling back: composite/nested state, fork/join/choice/history, note/style, concurrency, timeout/retry/compensation policy semantics, multiple initials, implicit states and guard-only labels.
+Transition policy is a separate exact statement: `policy <labeled concrete transition> :: <retry|timeout|compensation> "detail"`. It may precede the referenced transition and resolves at EOF by matching endpoint IDs, event, and guard. The same transition/kind pair is unique; different kinds preserve policy source order. A policy target event/guard cannot contain quotes because the escape-free suffix would be ambiguous; ordinary quoted transition labels without policy remain valid. Policy detail is source-confirmed opaque text, not a duration/attempt/rollback expression evaluated by the renderer. Policy metadata never creates states, edges, pseudo-states, or feedback classification.
+
+Policy-like suffix text in a transition label remains ordinary event text and is never promoted to policy metadata.
+
+Unsupported State syntax fails rather than falling back: composite/nested state, fork/join/choice/history, note/style, concurrency, automatic policy inference, multiple initials, implicit states and guard-only labels.

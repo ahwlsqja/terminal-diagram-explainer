@@ -1,0 +1,2 @@
+go test fuzz v1
+string("stateDiagram-v2\n[*] --> A\nA --> A : 00000000000000000000000\npolicy 000000000000000 :: retry \"")

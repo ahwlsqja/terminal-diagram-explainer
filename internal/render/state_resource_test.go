@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/state"
@@ -31,6 +32,21 @@ func TestStateMaximumFixtureIsBoundedAndAllocationLimited(t *testing.T) {
 			Event: fmt.Sprintf("extra%d", index),
 		})
 	}
+	for transitionIndex := 1; transitionIndex < len(diagram.Transitions); transitionIndex++ {
+		diagram.Policies = append(diagram.Policies, state.TransitionPolicy{
+			TransitionIndex: transitionIndex,
+			Kind:            state.RetryPolicy,
+			Detail:          fmt.Sprintf("policy%d", transitionIndex),
+		})
+	}
+	diagram.Policies = append(diagram.Policies, state.TransitionPolicy{TransitionIndex: 1, Kind: state.TimeoutPolicy, Detail: "request deadline"})
+	largeOutput, largeErr := State(diagram, Options{MaxWidth: 512, MaxHeight: 512})
+	if largeErr != nil {
+		t.Fatalf("maximum policy fixture failed: %v", largeErr)
+	}
+	if strings.Count(largeOutput, "  policy ") != 64 {
+		t.Fatalf("policy lines=%d", strings.Count(largeOutput, "  policy "))
+	}
 	output, err := State(diagram, DefaultOptions())
 	if err != nil && !errors.Is(err, ErrOutputBounds) {
 		t.Fatalf("maximum fixture output=%q err=%v", output, err)
@@ -58,7 +74,7 @@ func FuzzStateDirectASTNoPanic(f *testing.F) {
 				To:   state.Endpoint{Kind: state.StateRef, Index: 0},
 			}},
 		}
-		switch mode % 7 {
+		switch mode % 10 {
 		case 1:
 			diagram.Direction = state.Direction(99)
 		case 2:
@@ -71,6 +87,13 @@ func FuzzStateDirectASTNoPanic(f *testing.F) {
 			diagram.Transitions = append(diagram.Transitions, state.Transition{From: state.Endpoint{Kind: state.StateRef, Index: 1}, To: state.Endpoint{Kind: state.StateRef, Index: 0}, Event: "back"})
 		case 6:
 			diagram.Transitions = append(diagram.Transitions, state.Transition{From: state.Endpoint{Kind: state.StateRef, Index: 0}, To: state.Endpoint{Kind: state.Final, Index: -1}})
+		case 7:
+			diagram.Policies = append(diagram.Policies, state.TransitionPolicy{TransitionIndex: 0, Kind: state.RetryPolicy, Detail: "bad target"})
+		case 8:
+			diagram.Policies = append(diagram.Policies, state.TransitionPolicy{TransitionIndex: 9, Kind: state.RetryPolicy, Detail: "bad index"})
+		case 9:
+			diagram.Transitions = append(diagram.Transitions, state.Transition{From: state.Endpoint{Kind: state.StateRef, Index: 0}, To: state.Endpoint{Kind: state.StateRef, Index: 1}, Event: "go"})
+			diagram.Policies = append(diagram.Policies, state.TransitionPolicy{TransitionIndex: 1, Kind: state.PolicyKind(mode), Detail: "policy"})
 		}
 		defer func() {
 			if recovered := recover(); recovered != nil {

@@ -302,6 +302,10 @@ func stateReaches(adj [][]int, from, target int, budget *int) bool {
 }
 func stateLegends(d *state.Diagram, feedback []bool) ([]string, []string) {
 	normal, back := []string{}, []string{}
+	policies := make([][]state.TransitionPolicy, len(d.Transitions))
+	for _, policy := range d.Policies {
+		policies[policy.TransitionIndex] = append(policies[policy.TransitionIndex], policy)
+	}
 	for i, t := range d.Transitions {
 		if t.From.Kind != state.StateRef || t.To.Kind != state.StateRef {
 			continue
@@ -310,10 +314,14 @@ func stateLegends(d *state.Diagram, feedback []bool) ([]string, []string) {
 		if t.Label() != "" {
 			s += " : " + t.Label()
 		}
+		lines := []string{s}
+		for _, policy := range policies[i] {
+			lines = append(lines, "  policy "+policy.Kind.String()+": "+policy.Detail)
+		}
 		if feedback[i] {
-			back = append(back, s)
+			back = append(back, lines...)
 		} else {
-			normal = append(normal, s)
+			normal = append(normal, lines...)
 		}
 	}
 	return normal, back
@@ -338,7 +346,7 @@ func statePseudoLines(d *state.Diagram, ascii bool) (string, []string) {
 }
 
 func validateState(d *state.Diagram) error {
-	if d == nil || len(d.States) < 1 || len(d.States) > 32 || len(d.Transitions) < 1 || len(d.Transitions) > 64 || (d.Direction != state.TopDown && d.Direction != state.LeftRight) {
+	if d == nil || len(d.States) < 1 || len(d.States) > 32 || len(d.Transitions) < 1 || len(d.Transitions) > 64 || len(d.Policies) > 64 || (d.Direction != state.TopDown && d.Direction != state.LeftRight) {
 		return fmt.Errorf("%w: diagram", ErrInvalidState)
 	}
 	ids := map[string]struct{}{}
@@ -410,6 +418,30 @@ func validateState(d *state.Diagram) error {
 	}
 	if initial != 1 {
 		return fmt.Errorf("%w: initial count", ErrInvalidState)
+	}
+	seenPolicies := make(map[string]struct{}, len(d.Policies))
+	for index, policy := range d.Policies {
+		if policy.TransitionIndex < 0 || policy.TransitionIndex >= len(d.Transitions) {
+			return fmt.Errorf("%w: policy %d transition", ErrInvalidState, index)
+		}
+		if policy.Kind < state.RetryPolicy || policy.Kind > state.CompensationPolicy {
+			return fmt.Errorf("%w: policy %d kind", ErrInvalidState, index)
+		}
+		transition := d.Transitions[policy.TransitionIndex]
+		if transition.From.Kind != state.StateRef || transition.To.Kind != state.StateRef || transition.Event == "" {
+			return fmt.Errorf("%w: policy %d target", ErrInvalidState, index)
+		}
+		if strings.ContainsRune(transition.Event, '"') || strings.ContainsRune(transition.Guard, '"') {
+			return fmt.Errorf("%w: policy %d target label", ErrInvalidState, index)
+		}
+		if width, err := state.PolicyDetailCells(policy.Detail); err != nil || width == 0 || width > 96 {
+			return fmt.Errorf("%w: policy %d detail", ErrInvalidState, index)
+		}
+		key := fmt.Sprintf("%d/%d", policy.TransitionIndex, policy.Kind)
+		if _, exists := seenPolicies[key]; exists {
+			return fmt.Errorf("%w: duplicate policy", ErrInvalidState)
+		}
+		seenPolicies[key] = struct{}{}
 	}
 	return nil
 }

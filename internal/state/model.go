@@ -3,6 +3,7 @@ package state
 
 import (
 	"fmt"
+	"strings"
 	"unicode"
 
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/textcell"
@@ -42,6 +43,34 @@ type Transition struct {
 	To    Endpoint
 	Event string
 	Guard string
+}
+
+type PolicyKind uint8
+
+const (
+	InvalidPolicy PolicyKind = iota
+	RetryPolicy
+	TimeoutPolicy
+	CompensationPolicy
+)
+
+func (kind PolicyKind) String() string {
+	switch kind {
+	case RetryPolicy:
+		return "retry"
+	case TimeoutPolicy:
+		return "timeout"
+	case CompensationPolicy:
+		return "compensation"
+	default:
+		return ""
+	}
+}
+
+type TransitionPolicy struct {
+	TransitionIndex int
+	Kind            PolicyKind
+	Detail          string
 }
 
 func (t Transition) Label() string {
@@ -90,10 +119,18 @@ func TransitionLabelCells(event, guard string) (int, error) {
 	return eventWidth + guardWidth + 3, nil
 }
 
+func PolicyDetailCells(detail string) (int, error) {
+	if strings.ContainsRune(detail, '"') {
+		return 0, fmt.Errorf("policy detail에는 따옴표를 허용하지 않음")
+	}
+	return TextCells(detail)
+}
+
 type Diagram struct {
 	Direction   Direction
 	States      []State
 	Transitions []Transition
+	Policies    []TransitionPolicy
 }
 
 type Limits struct {
@@ -101,10 +138,11 @@ type Limits struct {
 	MaxLines       int
 	MaxStates      int
 	MaxTransitions int
+	MaxPolicies    int
 	MaxIDBytes     int
 	MaxLabelCells  int
 }
 
 func DefaultLimits() Limits {
-	return Limits{MaxBytes: 256 * 1024, MaxLines: 2048, MaxStates: 32, MaxTransitions: 64, MaxIDBytes: 64, MaxLabelCells: 96}
+	return Limits{MaxBytes: 256 * 1024, MaxLines: 2048, MaxStates: 32, MaxTransitions: 64, MaxPolicies: 64, MaxIDBytes: 64, MaxLabelCells: 96}
 }

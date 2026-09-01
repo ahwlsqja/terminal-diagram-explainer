@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Version       = "0.13.0"
+	Version       = "0.14.0"
 	MaxInputBytes = 256 * 1024
 )
 

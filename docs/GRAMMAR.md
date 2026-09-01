@@ -1,4 +1,4 @@
-# 0.13 문법
+# 0.14 문법
 
 ## Header
 
@@ -210,6 +210,7 @@ Committing --> Backoff : transient failure [attempt below 3]
 Backoff --> Committing : retry
 Committing --> Acked : commit succeeds
 Acked --> [*]
+policy Backoff --> Committing : retry :: retry "attempt below 3"
 ```
 
 - Header는 exact `stateDiagram-v2`입니다. Optional `direction TD|LR`은 header 다음, 첫 declaration/transition 전에 한 번만 허용합니다. 기본 방향은 TD입니다.
@@ -218,9 +219,14 @@ Acked --> [*]
 - Concrete transition은 `A --> B`, `A --> B : event`, `A --> B : event [guard]`입니다. Colon이 있으면 nonempty event가 필요하고 guard는 하나의 trailing nonempty bracket입니다.
 - `[*] --> State` initial은 정확히 하나 필요합니다. `State --> [*]` final은 0개 이상 허용하며 pseudo transition에는 event/guard를 붙이지 않습니다.
 - Exact duplicate transition은 거부하고 event/guard가 다른 transition은 source order로 보존합니다. Self/cycle도 명시 source order로 유지합니다.
-- 최대 32 states, 64 transitions, ID 64 bytes, state label과 canonical `event [guard]` 각각 96 cells입니다.
+- Transition policy는 `policy <exact labeled concrete transition> :: <kind> "detail"` 형식입니다. Kind는 exact `retry`, `timeout`, `compensation` 세 개이며 policy statement는 참조하는 transition보다 앞에 올 수 있습니다.
+- Policy는 endpoint·event·guard가 모두 같은 기존 transition을 EOF에서 참조합니다. Pseudo/unlabeled/missing transition, 같은 transition의 같은 kind 중복, unquoted·empty detail은 거부합니다. 한 transition에 서로 다른 kind는 source order로 허용합니다.
+- Ordinary transition event/guard의 quote는 기존 호환성을 위해 허용하지만, quoted label은 policy separator와 구분할 수 없으므로 policy target으로 참조할 수 없습니다.
+- Policy는 renderer metadata이며 state·transition·initial/final·feedback 분류를 생성하거나 바꾸지 않습니다. Detail은 source에서 직접 확인된 정책 원문이고 duration·attempt·backoff·rollback 보장을 계산하지 않습니다.
+- 최대 32 states, 64 transitions, 64 policies, ID 64 bytes, state label·canonical `event [guard]`·policy detail 각각 96 cells입니다.
 - Renderer는 state box 사이에 bounded connector lane을 예약합니다. Cycle/self는 reachability로 분류해 `feedback:` legend에, 나머지는 `transitions:` legend에 source order로 표시합니다.
-- Composite/nested state, fork/join/choice/history, note/style, concurrency, timeout·retry·compensation 정책 의미는 지원하지 않습니다.
+- Transition label의 policy-like suffix는 backward-compatible ordinary event text이며 policy로 해석하지 않습니다.
+- Composite/nested state, fork/join/choice/history, note/style, concurrency와 이름 기반 policy 승격은 지원하지 않습니다.
 
 ## Rejected input
 

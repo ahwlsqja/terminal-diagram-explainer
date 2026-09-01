@@ -44,3 +44,14 @@ func TestStateFileInputMatchesStdinAndASCII(t *testing.T) {
 		t.Fatalf("ascii=%q code=%d", ascii.String(), code)
 	}
 }
+
+func TestRunRendersExplicitTransitionPolicy(t *testing.T) {
+	input := "stateDiagram-v2\n[*] --> A\nA --> B : retry\nstate A\nstate B\npolicy A --> B : retry :: retry \"attempt below 3\"\n"
+	var out, errOut bytes.Buffer
+	if code := Run(nil, strings.NewReader(input), &out, &errOut); code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "A --> B : retry\n  policy retry: attempt below 3") {
+		t.Fatalf("state policy output=%q", out.String())
+	}
+}

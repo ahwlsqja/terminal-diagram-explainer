@@ -4,6 +4,7 @@ import "testing"
 
 func FuzzParse(f *testing.F) {
 	f.Add("stateDiagram-v2\n[*] --> A\nA --> [*]\nstate A\n")
+	f.Add("stateDiagram-v2\n[*] --> A\nA --> B : retry\nstate A\nstate B\npolicy A --> B : retry :: retry \"attempt below 3\"\n")
 	f.Add("stateDiagram-v2\n")
 	f.Fuzz(func(t *testing.T, source string) {
 		d, err := Parse(source, DefaultLimits())
