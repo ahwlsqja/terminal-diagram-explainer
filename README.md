@@ -85,6 +85,16 @@ GOTOOLCHAIN=local GOPROXY=off go vet ./...
 GOTOOLCHAIN=local GOPROXY=off go list -m all
 ```
 
+`evals/prompts.json`에는 agent에게 전달할 backend/core 설명 18개가 있고, `evals/oracles.json`에는 평가할 때만 읽는 기준이 분리되어 있습니다. Reference diagram은 실제 parser/renderer로 재생하며 strong notation evidence gate, text-only 선택, SSoT·ordering·security·redaction case를 검증합니다.
+
+Agent 결과 JSON은 다음 명령으로 정적 fail-fast 검증을 실행합니다.
+
+```bash
+go run ./cmd/eval-pack -root . -f result.json
+```
+
+이 검증은 diagram kind·표기·요소 상한, fact ID coverage, 금지 주장, renderer exit/stderr/stdout/dimensions, 최종 답변의 stdout 원문 포함을 확인합니다. Claim 문장이 연결한 fact의 의미와 실제로 일치하는지는 자동 판정하지 않으며 [evals/RUBRIC.md](evals/RUBRIC.md)의 의미 평가로 별도 확인합니다.
+
 ## 설치
 
 Go 1.25 이상과 Codex CLI가 필요합니다. renderer는 `$CODEX_HOME/bin/term-diagram`에 설치됩니다.

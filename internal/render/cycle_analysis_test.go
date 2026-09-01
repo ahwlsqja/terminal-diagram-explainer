@@ -159,6 +159,26 @@ func TestCycleRenderingDirectionsAndLegend(t *testing.T) {
 	}
 }
 
+func TestTDCycleOutputHasNoLeadingBlankLines(t *testing.T) {
+	source := `flowchart TD
+Receive --> Validate
+Validate --> Commit
+Commit -.-> Backoff
+Backoff --> Commit
+Commit --> Ack`
+	graph, err := flow.Parse(source, flow.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := Flow(graph, Options{MaxWidth: 120, MaxHeight: 80})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.HasPrefix(output, "\n") {
+		t.Fatalf("TD cycle output starts with blank rows: %q", output)
+	}
+}
+
 func TestSelfLoopRendersUnicodeAndASCII(t *testing.T) {
 	graph := mustParseGraph(t, "flowchart TD\nA[Worker] -->|again| A")
 	for _, options := range []Options{

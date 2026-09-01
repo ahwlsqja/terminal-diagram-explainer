@@ -12,12 +12,18 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 이 Skill 때문에 프로젝트의 `AGENTS.md`, SDLC, workflow, repo-local Skill 또는 source를 생성·수정하지 않는다.
 - 사용자의 별도 구현 요청이 없다면 읽고 설명만 한다.
 - repo-local 규칙, security boundary, source of truth가 항상 우선이다.
-- secret, credential, PII, 내부 hostname을 다이어그램 label에 노출하지 않는다.
+- secret, credential, PII, 내부 hostname의 원문을 다이어그램 label, Mermaid source, 최종 답변 또는 내부 fact ledger에 복제하지 않는다. 위치·식별자명만 기록하고 값은 `[REDACTED]`로 표시한다.
 - 관계·분기·경계가 3개 미만이거나 도식이 이해를 높이지 않으면 일반 텍스트로 답한다.
 
 ## 사실 확인
 
 현재 구현을 설명할 때는 가장 가까운 `AGENTS.md`와 repo의 SSoT 라우팅을 따른다. 운영 사실은 code/config/workflow/API의 실제 호출 경로로 확인하고, 확인되지 않은 컴포넌트나 데이터 흐름은 사실처럼 그리지 않는다.
+
+도식을 만들기 전에 내부 fact ledger를 만든다. 각 diagram label과 최종 답변의 강한 주장(component, owner, relationship, cardinality, retry, ordering, security guarantee)을 확인한 source fact에 연결한다. 이 ledger는 평가·검증용이며 기본 답변에는 노출하지 않는다.
+
+- Identifier와 함수 이름은 evidence가 아니다. `runParallel`, `activateFeature`, `customer_id` 같은 이름만으로 concurrency, activation lifetime, FK relationship을 만들지 않는다.
+- 확인된 사실과 추론을 분리한다. 추론이 필요하면 `가능성`, `확인 필요`, `제공된 코드만으로는 알 수 없음`처럼 불확실성을 표시한다.
+- Required fact가 부족하면 작은 부분 흐름만 설명하거나 도식을 생략한다. 빈칸을 일반적인 architecture pattern으로 채우지 않는다.
 
 ## 기본 출력
 
@@ -40,6 +46,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - API request/response, 서비스 간 호출 순서, fan-out, self-call: `sequenceDiagram`
 - Entity ownership, table attributes, PK/FK, cardinality 관계: `erDiagram`
 - 정상 흐름은 `-->`, 실패·비동기·보조 흐름은 `-.->`를 사용한다.
+- Node/participant/entity ID는 source 의미를 드러내는 짧은 semantic identifier를 사용한다. Cycle·routed·relationship legend에는 ID가 그대로 표시되므로 `A`, `B`, `N1` 같은 opaque ID를 쓰지 않는다.
 - decision은 `ID{label}`, data store/view는 `ID[(label)]`로 표시한다.
 - ownership, service, data, trust boundary가 설명의 핵심이면 `subgraph ID[label] ... end`로 묶는다. Node ID와 subgraph ID는 전체 graph에서 유일해야 한다.
 - cycle과 self-loop를 지원한다. Feedback edge는 외곽 route로 그리고 label은 도식 아래 `feedback:` legend에 표시된다.
@@ -54,6 +61,8 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - `par` branch의 source/display order를 실행 순서나 happens-before로 설명하지 않는다. 각 branch 내부 순서와 frame 전후 경계만 순서 의미를 가진다.
 - ER entity는 `ID[display label] { ... }`, attribute는 `type name [PK] [FK]`, relationship은 cardinality를 생략하지 않고 명시한다.
 - FK marker는 표시 metadata로만 사용한다. Source에서 참조 target·integrity가 확인되지 않았다면 relationship을 추론해 추가하지 않는다.
+- ER relationship label도 evidence가 필요하다. DDL의 `REFERENCES`만 확인되면 `references`처럼 source에 있는 중립 용어를 사용하고, `owns`, `has`, `places` 같은 business verb를 만들지 않는다.
+- Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK=DDL·ORM constraint, cardinality=명시 schema/contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
 - 현재 버전은 class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
 
@@ -68,6 +77,7 @@ printf '%s\n' "$diagram_source" | scripts/render.sh
 ```
 
 - 성공한 renderer 출력을 `text` code fence에 넣는다.
+- Renderer 성공 stdout은 그대로 사용하고 line·glyph·legend를 수동 편집하지 않는다. Session 내부에는 source, exit status, stderr, output dimensions을 검증 evidence로 유지한다.
 - Mermaid source는 사용자가 재사용을 요청했을 때만 함께 보여준다.
 - 실패하면 오류가 가리키는 문법·limit을 줄여 한 번만 재시도한다.
 - 두 번째 실패 시 작은 수동 Unicode 도식으로 fallback하고 실패를 한 문장으로 밝힌다.

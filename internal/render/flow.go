@@ -2,6 +2,7 @@ package render
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/textcell"
@@ -64,7 +65,7 @@ func Flow(graph *flow.Graph, options Options) (string, error) {
 			return "", err
 		}
 	}
-	return appendOuterLegends(canvas.String(), graph, plan.feedback, outer, options)
+	return appendOuterLegends(strings.TrimLeft(canvas.String(), "\n"), graph, plan.feedback, outer, options)
 }
 
 func place(graph *flow.Graph, ranks []int, maxRank int, feedback []bool, options Options) ([]placement, error) {

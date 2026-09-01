@@ -57,6 +57,15 @@
 - Component-banded vertical tables, endpoint apron ports, source-order rails와 bounded relationship legend를 사용합니다.
 - Relationship attributes, inheritance, weak entity, inferred cardinality는 별도 확장 대상으로 남깁니다.
 
+## 8. Backend Explanation Evaluation Pack — 완료 (0.9.0)
+
+- Auth, outbox, checkout, worker retry, cache, schema, tenant boundary, SSoT, ordering, redaction 등 18개 backend/core case를 고정합니다.
+- Field/function 이름만으로 FK, parallel, activation을 추론하는 adversarial case를 포함합니다.
+- Agent 입력 `prompts.json`과 평가자 전용 `oracles.json`을 분리하고 fact마다 source ID와 anchor를 둡니다.
+- Reference source와 제출 결과는 실제 CLI renderer로 재생하고 diagram kind·element cap·required/prohibited notation·stdout·dimensions를 검증합니다.
+- `eval-pack`은 fact ID coverage와 기계 판독 가능한 fail-fast 위반을 결정적으로 거부하고, fact 문장 의미의 정합성과 점수 평가는 rubric에 남깁니다.
+- Skill은 internal fact ledger, names-are-not-evidence, strong notation direct-evidence gate, renderer stdout verbatim 계약을 적용합니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

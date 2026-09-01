@@ -2,6 +2,14 @@
 
 아래 항목은 사실 목록이 아니라 **확인할 관점**이다. 실제 요청마다 source와 SSoT로 존재 여부를 검증한다.
 
+## Evidence gate
+
+- 이름은 의미의 증거가 아니다. `parallel`, `activate`, `owner`, `*_id` 같은 token은 구현·schema·runtime contract로 확인한다.
+- 도식의 모든 component와 edge는 source fact가 있어야 한다. Unknown sender, broker, retry, cache, transaction, FK target은 자동 보완하지 않는다.
+- Renderer legend가 ID를 노출하는 cycle·routed·relationship 경로에서는 opaque ID 대신 의미 있는 source-derived ID를 사용한다.
+- `par`, activation, PK/FK/cardinality처럼 강한 표기는 직접 evidence가 없으면 사용하지 않는다.
+- 근거가 부족한 요청은 확인된 두세 단계만 설명하거나 text-only로 답한다.
+
 ## 요청·데이터 흐름
 
 - producer가 어떤 identity·scope·payload를 만든다.
@@ -46,6 +54,8 @@ Participant가 실제로 처리 중인 구간이 source에서 확인되면 `acti
 독립 branch를 `par/and`로 묶을 때는 branch 내부 순서만 설명한다. Branch의 화면상 위아래 순서를 실제 실행 순서나 happens-before로 해석하지 않는다.
 
 Entity·table ownership과 cardinality가 핵심이면 ER Diagram을 사용한다. PK/FK marker와 relationship은 source에서 각각 확인하고, FK 이름만 보고 target 관계를 추론하지 않는다.
+
+ER relationship label은 schema·annotation·query에서 확인된 용어를 사용한다. DDL `REFERENCES`만 있으면 `references`로 표시하고 business ownership verb를 새로 만들지 않는다.
 
 ## Worker·비동기 처리
 
