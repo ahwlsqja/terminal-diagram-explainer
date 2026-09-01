@@ -4,8 +4,8 @@
 
 구성은 두 부분으로 나뉩니다.
 
-- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence·ER·State → Unicode/ASCII renderer
-- `terminal-diagram-explainer`: 한 줄 결론 → 도식 → 단계별 해설 → 개발 핵심 포인트 순으로 설명하는 Codex Skill
+- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence·ER·State → Unicode/ASCII/SVG renderer
+- `terminal-diagram-explainer`: SVG를 로컬 PNG로 변환해 이미지로 첨부하고, 지원되지 않는 surface에서만 terminal text로 fallback하는 Codex Skill
 
 플러그인은 표현 방식만 추가하며 프로젝트의 `AGENTS.md`, SDLC, workflow 또는 repo-local Skill을 변경하지 않습니다.
 
@@ -129,9 +129,10 @@ Standalone CLI 기본 viewport는 240×200입니다. 좁은 출력 surface에서
 
 ```bash
 printf '%s\n' "$diagram_source" | term-diagram -width 120 -height 200 -fit
+printf '%s\n' "$diagram_source" | term-diagram -format svg -width 120 -height 200 -fit > diagram.svg
 ```
 
-Codex plugin wrapper는 코드 블록 soft-wrap을 피하기 위해 120×200과 Flow auto-fit을 기본 적용합니다.
+Codex plugin wrapper는 코드 블록 soft-wrap과 font line-height 단절을 피하기 위해 120×200 Flow auto-fit SVG를 만들고, `sips`(macOS)·`rsvg-convert`·ImageMagick 중 설치된 로컬 변환기로 PNG를 생성합니다. 네트워크 다운로드는 수행하지 않습니다.
 
 `evals/prompts.json`에는 agent에게 전달할 backend/core 설명 18개가 있고, `evals/oracles.json`에는 평가할 때만 읽는 기준이 분리되어 있습니다. Reference diagram은 실제 parser/renderer로 재생하며 strong notation evidence gate, text-only 선택, SSoT·ordering·security·redaction case를 검증합니다.
 

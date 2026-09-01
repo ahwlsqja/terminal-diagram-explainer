@@ -1,6 +1,6 @@
 ---
 name: terminal-diagram-explainer
-description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·Worker 호출 순서·상태 전이·장애 원인을 한 줄 결론, bounded 터미널 Flowchart·Sequence·ER·State Diagram, 단계별 해설로 설명한다. 관계·분기·경계·시간 순서가 여러 개인 개발 설명과 코드 변경의 런타임 의미를 전달할 때 사용하며 단순한 한 단계 답변이나 text-only 요청에는 사용하지 않는다.
+description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·Worker 호출 순서·상태 전이·장애 원인을 한 줄 결론, bounded SVG/PNG Flowchart·Sequence·ER·State Diagram, 단계별 해설로 설명한다. 관계·분기·경계·시간 순서가 여러 개인 개발 설명과 코드 변경의 런타임 의미를 전달할 때 사용하며 단순한 한 단계 답변이나 text-only 요청에는 사용하지 않는다.
 ---
 
 # Terminal Diagram Explainer
@@ -28,7 +28,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 ## 기본 출력
 
 1. **한 줄 결론**: 무엇이 왜 그렇게 동작하는지 먼저 말한다.
-2. **터미널 도식 한 개**: 한 가지 핵심 이야기만 5~12 nodes 또는 최대 6 participants로 표현한다.
+2. **그래픽 도식 한 개**: 한 가지 핵심 이야기만 5~12 nodes 또는 최대 6 participants로 표현한다. 이미지 attachment를 사용할 수 없는 surface에서만 터미널 도식을 사용한다.
 3. **읽는 순서**: 도식 label과 연결한 3~7단계 설명을 쓴다.
 4. **개발 핵심**: 관련 있는 항목만 고른다.
    - source of truth와 data ownership
@@ -90,16 +90,17 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 ## 렌더링
 
-Mermaid subset source를 만든 뒤 이 Skill 디렉터리의 `scripts/render.sh`에 stdin으로 전달한다.
+Mermaid subset source를 만든 뒤 기본적으로 이 Skill 디렉터리의 `scripts/render-image.sh`에 stdin으로 전달한다.
 
 ```bash
-printf '%s\n' "$diagram_source" | scripts/render.sh
+printf '%s\n' "$diagram_source" | scripts/render-image.sh
 ```
 
-- 성공한 renderer 출력을 `text` code fence에 넣는다.
-- Renderer 성공 stdout은 그대로 사용하고 line·glyph·legend를 수동 편집하지 않는다. Session 내부에는 source, exit status, stderr, output dimensions을 검증 evidence로 유지한다.
+- 성공 stdout의 PNG 경로를 `view_image` 같은 local image 도구로 읽어 이미지 block으로 첨부한다. SVG/XML source나 PNG 경로 문자열을 최종 답변 본문에 붙이지 않는다.
+- Renderer가 만든 SVG geometry와 PNG를 수동 편집하지 않는다. Session 내부에는 source, exit status, stderr, SVG/PNG 경로와 image dimensions을 검증 evidence로 유지한다.
 - Plugin renderer는 120-cell viewport와 Flow auto-fit을 사용한다. 요청 방향이 120 cells를 넘으면 반대 방향을 시도하며, 성공 출력의 모든 행은 120 cells 이하여야 한다.
 - Mermaid source는 사용자가 재사용을 요청했을 때만 함께 보여준다.
+- 이미지 변환기나 image attachment 도구가 없는 surface에서는 동일 source를 `scripts/render.sh`로 렌더하고 성공 stdout을 `text` code fence에 그대로 넣는다.
 - 두 방향 모두 viewport를 넘거나 route가 모호하면 label·node 수를 줄이거나 핵심 이야기를 두 도식으로 나눠 한 번만 재시도한다.
-- 두 번째 실패 시 작은 수동 Unicode 도식으로 fallback하고 실패를 한 문장으로 밝힌다.
+- 두 번째 실패 시 수동 Unicode 도식을 만들지 않는다. 도식을 생략하고 확인된 사실만 text로 설명하며 renderer 한계를 한 문장으로 밝힌다.
 - renderer는 프로젝트 파일을 만들거나 자동 다운로드·업데이트하지 않는다.

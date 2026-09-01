@@ -1,7 +1,7 @@
 {
   "name": "terminal-diagram-explainer",
-  "version": "0.16.0",
-  "description": "복잡한 소프트웨어 흐름을 bounded 터미널 도식과 단계별 해설로 설명합니다.",
+  "version": "0.17.0",
+  "description": "복잡한 소프트웨어 흐름을 bounded 그래픽 도식과 단계별 해설로 설명합니다.",
   "author": {
     "name": "ahwlsqja"
   },
@@ -12,11 +12,11 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Terminal Diagram Explainer",
-    "shortDescription": "개발 흐름을 안전한 터미널 도식으로 설명",
-    "longDescription": "아키텍처, 데이터 흐름, API·Worker 호출 순서와 장애 원인을 한 줄 결론, bounded terminal diagram, 단계별 해설로 전달합니다.",
+    "shortDescription": "개발 흐름을 안전한 그래픽 도식으로 설명",
+    "longDescription": "아키텍처, 데이터 흐름, API·Worker 호출 순서와 장애 원인을 한 줄 결론, bounded SVG/PNG diagram, 단계별 해설로 전달합니다.",
     "developerName": "ahwlsqja",
     "category": "Productivity",
     "capabilities": [],
-    "defaultPrompt": "Use $terminal-diagram-explainer to explain this software flow with a terminal diagram."
+    "defaultPrompt": "Use $terminal-diagram-explainer to explain this software flow with a graphical diagram."
   }
 }

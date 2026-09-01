@@ -1,4 +1,4 @@
-# 0.16 문법
+# 0.17 문법
 
 ## Header
 
@@ -53,6 +53,7 @@ B -.->|retry| A
 - `-width`, `-height`로 성공 출력의 cell bounds를 제한합니다.
 - `-fit`은 Flow의 요청 방향이 bounds를 넘을 때 반대 방향을 한 번 시도합니다. 두 방향이 모두 실패하면 clipping하거나 soft-wrap 가능한 출력을 내지 않고 오류를 반환합니다.
 - Codex plugin wrapper는 120×200과 `-fit`을 기본 사용합니다.
+- `-format svg`는 같은 bounded layout을 fixed viewBox의 vector line·arrow·XML-escaped text로 출력합니다. 문법과 topology 검증은 text backend와 동일합니다.
 
 ## Subgraphs
 

@@ -87,7 +87,12 @@ func planOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, placements 
 	}
 
 	routes := make([]feedbackRoute, 0, outerCount)
-	laneIndex := 0
+	type targetLaneKey struct {
+		target int
+		dashed bool
+	}
+	var forwardTargetLanes map[targetLaneKey]int
+	nextLane := 0
 	for edgeIndex, edge := range graph.Edges {
 		if !outer[edgeIndex] {
 			continue
@@ -95,6 +100,27 @@ func planOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, placements 
 		from := placements[edge.From]
 		to := placements[edge.To]
 		route := feedbackRoute{edgeIndex: edgeIndex, feedback: plan.feedback[edgeIndex]}
+		if graph.Direction == flow.TopToBottom && !plan.feedback[edgeIndex] {
+			if compact, ok := planCompactTDForwardRoute(edgeIndex, edge, from, to, placements, options); ok {
+				routes = append(routes, compact)
+				continue
+			}
+		}
+		laneIndex := nextLane
+		if !plan.feedback[edgeIndex] {
+			if forwardTargetLanes == nil {
+				forwardTargetLanes = make(map[targetLaneKey]int)
+			}
+			key := targetLaneKey{target: edge.To, dashed: edge.Dashed}
+			if existing, exists := forwardTargetLanes[key]; exists {
+				laneIndex = existing
+			} else {
+				forwardTargetLanes[key] = laneIndex
+				nextLane++
+			}
+		} else {
+			nextLane++
+		}
 		if graph.Direction == flow.LeftToRight {
 			sourceX := from.x + from.width
 			sourceY := from.y + from.height/2
@@ -140,9 +166,69 @@ func planOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, placements 
 			return nil, err
 		}
 		routes = append(routes, route)
-		laneIndex++
 	}
 	return routes, nil
+}
+
+func planCompactTDForwardRoute(edgeIndex int, edge flow.Edge, from, to placement, placements []placement, options Options) (feedbackRoute, bool) {
+	sourceX := from.x + from.width/2
+	sourceY := from.y + from.height
+	targetX := to.x + to.width/2
+	targetRailY := to.y - 2
+	targetArrowY := to.y - 1
+	if targetRailY <= sourceY {
+		return feedbackRoute{}, false
+	}
+
+	segments := make([]routeSegment, 0, 4)
+	tryLane := func(laneX int) (feedbackRoute, bool) {
+		segments = segments[:0]
+		if sourceX != laneX {
+			segments = append(segments, routeSegment{x1: sourceX, y1: sourceY, x2: laneX, y2: sourceY, dashed: edge.Dashed})
+		}
+		segments = append(segments, routeSegment{x1: laneX, y1: sourceY, x2: laneX, y2: targetRailY, dashed: edge.Dashed})
+		if laneX != targetX {
+			segments = append(segments, routeSegment{x1: laneX, y1: targetRailY, x2: targetX, y2: targetRailY, dashed: edge.Dashed})
+		}
+		segments = append(segments, routeSegment{x1: targetX, y1: targetRailY, x2: targetX, y2: targetArrowY, dashed: edge.Dashed})
+		route := feedbackRoute{
+			edgeIndex: edgeIndex,
+			segments:  segments,
+			arrowX:    targetX,
+			arrowY:    targetArrowY,
+			direction: down,
+		}
+		if err := validateFeedbackRoute(route, placements, options); err == nil {
+			return route, true
+		}
+		return feedbackRoute{}, false
+	}
+	if route, ok := tryLane(sourceX); ok {
+		return route, true
+	}
+	if targetX != sourceX {
+		if route, ok := tryLane(targetX); ok {
+			return route, true
+		}
+	}
+	for distance := 1; ; distance++ {
+		left := sourceX - distance
+		if left >= 0 && left != targetX {
+			if route, ok := tryLane(left); ok {
+				return route, true
+			}
+		}
+		right := sourceX + distance
+		if right < options.MaxWidth && right != targetX {
+			if route, ok := tryLane(right); ok {
+				return route, true
+			}
+		}
+		if left < 0 && right >= options.MaxWidth {
+			break
+		}
+	}
+	return feedbackRoute{}, false
 }
 
 func maxForwardLabelRight(graph *flow.Graph, outer []bool, placements []placement) int {

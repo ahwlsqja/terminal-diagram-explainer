@@ -133,6 +133,14 @@
 - CLI `-width`, `-height`, `-fit`을 추가하고 plugin wrapper는 120×200 viewport에서 반대 방향 auto-fit을 사용합니다.
 - Journey 218-cell LR fixture, crossed adjacency, parallel label, directional elbow를 회귀 테스트로 고정합니다.
 
+## 16. SVG Image Backend — 완료 (0.17.0)
+
+- Canonical terminal geometry의 line glyph를 연속 SVG path, arrow를 polygon, label을 XML-escaped text로 변환합니다.
+- SVG viewBox는 terminal cell dimensions에서 결정하며 source cell budget 60,000을 넘으면 fail-closed합니다.
+- CLI `-format text|svg`를 제공하고 기존 text stdout 계약은 기본값으로 유지합니다.
+- Plugin은 120×200 auto-fit SVG를 로컬 PNG로 변환해 image attachment로 사용하고, image surface가 없을 때만 terminal text로 fallback합니다.
+- 두 번째 renderer 실패에서 수동 Unicode 그림을 생성하지 않아 검증되지 않은 geometry가 canonical output으로 섞이지 않게 합니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

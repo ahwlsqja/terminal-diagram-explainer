@@ -19,6 +19,7 @@ fi
 case "${1:-}" in
   "") exec "${render_binary}" -width 120 -fit ;;
   --ascii|-ascii) exec "${render_binary}" -ascii -width 120 -fit ;;
+  --svg) exec "${render_binary}" -format svg -width 120 -fit ;;
   *)
     printf '지원하지 않는 renderer 인자: %q\n' "$1" >&2
     exit 2

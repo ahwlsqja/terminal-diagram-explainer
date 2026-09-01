@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	Version       = "0.16.0"
+	Version       = "0.17.0"
 	MaxInputBytes = 256 * 1024
 )
 
@@ -30,10 +30,11 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	width := flags.Int("width", defaultOptions.MaxWidth, "출력 viewport 폭")
 	height := flags.Int("height", defaultOptions.MaxHeight, "출력 viewport 높이")
 	fit := flags.Bool("fit", false, "Flow가 viewport를 넘으면 방향을 자동 전환")
+	format := flags.String("format", "text", "출력 형식: text 또는 svg")
 	version := flags.Bool("version", false, "버전 출력")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(stderr, "사용법: term-diagram [-ascii] [-fit] [-width cells] [-height cells] [-f path|-] [-version]")
+			fmt.Fprintln(stderr, "사용법: term-diagram [-ascii] [-fit] [-format text|svg] [-width cells] [-height cells] [-f path|-] [-version]")
 		} else {
 			fmt.Fprintln(stderr, "잘못된 CLI 옵션")
 		}
@@ -49,6 +50,10 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if *height <= 0 || *height > 512 {
 		fmt.Fprintln(stderr, "viewport 높이는 1..512여야 함")
+		return 2
+	}
+	if *format != "text" && *format != "svg" {
+		fmt.Fprintln(stderr, "출력 형식은 text 또는 svg여야 함")
 		return 2
 	}
 	if *version {
@@ -129,6 +134,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if err != nil {
 		fmt.Fprintln(stderr, err)
 		return 2
+	}
+	if *format == "svg" {
+		output, err = render.SVG(output)
+		if err != nil {
+			fmt.Fprintln(stderr, err)
+			return 2
+		}
 	}
 
 	var committed bytes.Buffer

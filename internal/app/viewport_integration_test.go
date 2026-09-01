@@ -23,6 +23,36 @@ IMV --> WITNESS
 WITNESS --> DECISION
 `
 
+const operationalStatusFlowSource = `flowchart TD
+RAW[(raw_events)] -->|insert-block IMV| WITNESS[(159 merged: typed witness)]
+LEGACY[156/157 legacy Producer] -.-> PAUSE[158 merged: 1-year pause]
+WITNESS --> WINDOW[160 WIP: physical window 20k]
+WINDOW --> CANDIDATE[semantic candidate 12k]
+CANDIDATE --> DECISION{revision decision}
+DECISION -->|unique tuple| CURRENT[current/hour 기록]
+DECISION -->|equal-version A/B| HOLD[HOLD quarantine]
+CURRENT --> EVIDENCE[publication evidence]
+HOLD --> EVIDENCE
+EVIDENCE --> RECEIPT[(terminal receipt)]
+RECEIPT --> CURSOR[(contiguous cursor)]
+`
+
+const complexDependencyFlowSource = `flowchart TD
+Base[완료 2233 · 2234] --> V3[진행 2235: v3 Producer]
+V3 --> Cap[대기 2236: fault · capacity]
+Cap --> Cad[대기 2237: cadence 활성]
+Session[진행 2179: Session-Hour] --> Verify[미등록: Verification]
+Dict[진행 2147: Dictionary] --> Verify
+Need{대기 2180: Runner 필요?}
+Need -->|true| Runner[조건부 2175 · 2149]
+Need -->|false| Historical[미등록: Historical build]
+Runner --> Historical
+Cad --> Verify
+Historical --> Verify
+Verify --> Activation[미등록: Activation]
+Activation --> Cutover[미등록: API · SPA · Production]
+`
+
 func TestRunAutoFitsFlowWithinRequestedWidth(t *testing.T) {
 	result := invoke([]string{"-width", "120", "-fit"}, strings.NewReader(wideFlowSource))
 	if result.code != 0 || result.stderr != "" {
@@ -39,6 +69,33 @@ func TestRunAutoFitsFlowWithinRequestedWidth(t *testing.T) {
 		}
 		if width > 120 {
 			t.Fatalf("출력 %d행 폭=%d, limit=120:\n%s", index+1, width, result.stdout)
+		}
+	}
+}
+
+func TestRunKeepsOperationalStatusFlowCompact(t *testing.T) {
+	result := invoke([]string{"-width", "120", "-fit"}, strings.NewReader(operationalStatusFlowSource))
+	if result.code != 0 || result.stderr != "" {
+		t.Fatalf("status flow 렌더 실패: %+v", result)
+	}
+	width, height := outputDimensions(t, result.stdout)
+	if width > 120 || height > 50 {
+		t.Fatalf("status flow=%dx%d, want width<=120 height<=50:\n%s", width, height, result.stdout)
+	}
+}
+
+func TestRunRendersComplexDependencyFlowWithoutManualFallback(t *testing.T) {
+	result := invoke([]string{"-width", "120", "-fit"}, strings.NewReader(complexDependencyFlowSource))
+	if result.code != 0 || result.stderr != "" {
+		t.Fatalf("dependency flow가 수동 fallback을 요구함: %+v", result)
+	}
+	width, _ := outputDimensions(t, result.stdout)
+	if width > 120 {
+		t.Fatalf("dependency flow width=%d, limit=120:\n%s", width, result.stdout)
+	}
+	for _, label := range []string{"완료 2233 · 2234", "진행 2235: v3 Producer", "미등록: Verification", "미등록: API · SPA · Production"} {
+		if !strings.Contains(result.stdout, label) {
+			t.Fatalf("dependency flow label %q 누락:\n%s", label, result.stdout)
 		}
 	}
 }
@@ -69,4 +126,20 @@ func TestRunRejectsInvalidViewportBounds(t *testing.T) {
 			}
 		})
 	}
+}
+
+func outputDimensions(t *testing.T, output string) (int, int) {
+	t.Helper()
+	lines := strings.Split(strings.TrimSuffix(output, "\n"), "\n")
+	maximumWidth := 0
+	for index, line := range lines {
+		width, err := textcell.Width(line)
+		if err != nil {
+			t.Fatalf("출력 %d행 폭 계산 실패: %v", index+1, err)
+		}
+		if width > maximumWidth {
+			maximumWidth = width
+		}
+	}
+	return maximumWidth, len(lines)
 }

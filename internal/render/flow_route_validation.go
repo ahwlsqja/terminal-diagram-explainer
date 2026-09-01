@@ -90,7 +90,7 @@ func planForwardRoutes(graph *flow.Graph, placements []placement, ranks []int, o
 				routes = append(routes, route)
 				continue
 			}
-			laneX := rankRight[ranks[edge.From]] + 2 + forwardEdgeLaneIndex(graph, ranks, outer, edgeIndex)*2
+			laneX := rankRight[ranks[edge.From]] + 2 + forwardEdgeLaneIndex(graph, placements, ranks, outer, edgeIndex)*2
 			if laneX >= endX {
 				return nil, fmt.Errorf("%w: LR forward rail has no gap", ErrLayout)
 			}
@@ -106,17 +106,20 @@ func planForwardRoutes(graph *flow.Graph, placements []placement, ranks []int, o
 
 		startX, startY := from.x+from.width/2, from.y+from.height
 		endX, endY := to.x+to.width/2, to.y-1
-		if endY <= startY+2 {
-			return nil, fmt.Errorf("edge routing 공간 부족")
-		}
 		route.arrowX, route.arrowY, route.direction = endX, endY, down
 		if startX == endX {
+			if endY <= startY {
+				return nil, fmt.Errorf("edge routing 공간 부족")
+			}
 			route.segments = []routeSegment{{x1: startX, y1: startY, x2: endX, y2: endY, dashed: edge.Dashed}}
 			route.labelX, route.labelY = endX+2, startY+1
 			routes = append(routes, route)
 			continue
 		}
-		laneY := startY + 2 + forwardEdgeLaneIndex(graph, ranks, outer, edgeIndex)
+		if endY <= startY+1 {
+			return nil, fmt.Errorf("edge routing 공간 부족")
+		}
+		laneY := startY + 1 + forwardEdgeLaneIndex(graph, placements, ranks, outer, edgeIndex)
 		route.segments = []routeSegment{
 			{x1: startX, y1: startY, x2: startX, y2: laneY, dashed: edge.Dashed},
 			{x1: startX, y1: laneY, x2: endX, y2: laneY, dashed: edge.Dashed},
@@ -199,15 +202,34 @@ func forwardEdgeCountsByRank(graph *flow.Graph, ranks []int, outer []bool) []int
 	return counts
 }
 
-func forwardEdgeLaneIndex(graph *flow.Graph, ranks []int, outer []bool, edgeIndex int) int {
+func forwardDoglegCountsByRank(graph *flow.Graph, placements []placement, ranks []int, outer []bool) []int {
+	counts := make([]int, len(forwardEdgeCountsByRank(graph, ranks, outer)))
+	for edgeIndex, edge := range graph.Edges {
+		if !outer[edgeIndex] && isForwardDogleg(graph, placements, edge) {
+			counts[ranks[edge.From]]++
+		}
+	}
+	return counts
+}
+
+func forwardEdgeLaneIndex(graph *flow.Graph, placements []placement, ranks []int, outer []bool, edgeIndex int) int {
 	rank := ranks[graph.Edges[edgeIndex].From]
 	lane := 0
 	for previous := 0; previous < edgeIndex; previous++ {
-		if !outer[previous] && ranks[graph.Edges[previous].From] == rank {
+		if !outer[previous] && ranks[graph.Edges[previous].From] == rank && isForwardDogleg(graph, placements, graph.Edges[previous]) {
 			lane++
 		}
 	}
 	return lane
+}
+
+func isForwardDogleg(graph *flow.Graph, placements []placement, edge flow.Edge) bool {
+	from := placements[edge.From]
+	to := placements[edge.To]
+	if graph.Direction == flow.LeftToRight {
+		return from.y+1 != to.y+1
+	}
+	return from.x+from.width/2 != to.x+to.width/2
 }
 
 func forEachRoutePoint(segment routeSegment, visit func(routePoint)) {

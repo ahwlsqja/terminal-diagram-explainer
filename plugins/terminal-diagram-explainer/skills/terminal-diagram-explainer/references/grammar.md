@@ -17,7 +17,7 @@ end
 %% comment
 ```
 
-Limits: 256 KiB input, 2,048 lines, 48 nodes, 96 edges, 32 subgraphs, subgraph depth 8, 64-byte ID, 96-cell label. Standalone default is 240×200; the plugin wrapper uses a 120×200 viewport and Flow auto-fit.
+Limits: 256 KiB input, 2,048 lines, 48 nodes, 96 edges, 32 subgraphs, subgraph depth 8, 64-byte ID, 96-cell label. Standalone default is 240×200; the plugin wrapper uses a 120×200 viewport and Flow auto-fit. `-format svg` preserves the same validated geometry as vector paths and XML-escaped text.
 
 Subgraphs form a bounded parent forest. Node and subgraph IDs share one graph-wide namespace, and every node has exactly one direct scope. Existing bare edge endpoints may be referenced across scopes without changing ownership. Empty leaf subgraphs fail closed.
 

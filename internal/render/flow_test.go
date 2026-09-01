@@ -73,9 +73,6 @@ func TestDAGGoldenRemainsStable(t *testing.T) {
 				"│ Start │\n" +
 				"└───────┘\n" +
 				"    │\n" +
-				"    │\n" +
-				"    │\n" +
-				"    │\n" +
 				"    ▼\n" +
 				"┌──────┐\n" +
 				"│ Done │\n" +

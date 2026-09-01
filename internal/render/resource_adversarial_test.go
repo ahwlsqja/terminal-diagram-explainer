@@ -109,7 +109,13 @@ Combining --> WideCombining[한́글]`
 	assertOutputWithinLimits(t, got, 40, 40)
 
 	lines := strings.Split(got, "\n")
-	for row := 0; row+2 < len(lines); row += 8 {
+	boxCount := 0
+	for row := 0; row+2 < len(lines); row++ {
+		trimmed := strings.TrimLeft(lines[row], " ")
+		if !strings.HasPrefix(trimmed, "┌") || !strings.HasSuffix(trimmed, "┐") {
+			continue
+		}
+		boxCount++
 		topWidth, topErr := textcell.Width(lines[row])
 		middleWidth, middleErr := textcell.Width(lines[row+1])
 		bottomWidth, bottomErr := textcell.Width(lines[row+2])
@@ -119,6 +125,9 @@ Combining --> WideCombining[한́글]`
 		if topWidth != middleWidth || middleWidth != bottomWidth {
 			t.Errorf("row %d box 정렬 폭 = (%d, %d, %d):\n%s", row, topWidth, middleWidth, bottomWidth, got)
 		}
+	}
+	if boxCount != 4 {
+		t.Fatalf("aligned box count=%d, want 4:\n%s", boxCount, got)
 	}
 }
 

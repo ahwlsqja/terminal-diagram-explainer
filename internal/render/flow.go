@@ -24,6 +24,8 @@ type placement struct {
 	x, y, width, height int
 }
 
+const tdNodeGap = 3
+
 func Flow(graph *flow.Graph, options Options) (string, error) {
 	output, err := flowInRequestedDirection(graph, options)
 	if err == nil || !options.AutoFit || !errors.Is(err, ErrOutputBounds) || graph == nil {
@@ -150,31 +152,34 @@ func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []place
 
 func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []placement, ranks []int, feedback []bool, options Options) ([]placement, error) {
 	rowWidths := make([]int, len(groups))
-	rowGaps := make([]int, len(groups))
-	forwardCounts := forwardEdgeCountsByRank(graph, ranks, feedback)
 	maxRowWidth := 0
 	for rank, group := range groups {
 		for index, node := range group {
 			if index > 0 {
-				rowWidths[rank] += 6
+				rowWidths[rank] += tdNodeGap
 			}
 			rowWidths[rank] += widths[node]
 		}
 		maxRowWidth = max(maxRowWidth, rowWidths[rank])
-		rowGaps[rank] = max(5, forwardCounts[rank]+3)
 	}
 	if maxRowWidth > options.MaxWidth {
 		return nil, fmt.Errorf("%w: 출력 폭 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, maxRowWidth, options.MaxWidth)
 	}
-	y := 0
 	for rank, group := range groups {
 		x := centeredTDRowLeft(graph, placements, ranks, feedback, rank, rowWidths[rank], maxRowWidth)
 		for _, node := range group {
-			placements[node] = placement{x: x, y: y, width: widths[node], height: 3}
-			x += widths[node] + 6
+			placements[node] = placement{x: x, width: widths[node], height: 3}
+			x += widths[node] + tdNodeGap
+		}
+	}
+	doglegCounts := forwardDoglegCountsByRank(graph, placements, ranks, feedback)
+	y := 0
+	for rank, group := range groups {
+		for _, node := range group {
+			placements[node].y = y
 		}
 		if rank+1 < len(groups) {
-			y += 3 + rowGaps[rank]
+			y += 3 + max(2, doglegCounts[rank]+2)
 		}
 	}
 	neededHeight := y + 3
