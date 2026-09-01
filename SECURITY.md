@@ -40,12 +40,14 @@
 - UNIQUE/NOT NULL은 별도 constraint bit로 보존하고 parser와 renderer가 공유 formatter로 정규화합니다. PK나 field 이름에서 constraint를 자동 추론하지 않습니다.
 - Composite table constraint는 attribute index와 FK target entity/attribute index로 보존하고 parser EOF 및 renderer 진입에서 독립 재검증합니다. FK는 relationship/port/cardinality를 만들지 않습니다.
 - Table constraints는 64 total, entity당 8, 2~8 columns, 기본 240-cell canvas에 맞춘 236-cell text hard limit을 적용합니다.
-- State parser는 32 states, 64 transitions, 64 policies, ID 64 bytes, canonical state/transition label과 policy detail 96 cells hard limit 및 exact initial invariant를 적용합니다.
+- State parser는 32 total ordinary/choice states, choice당 8 branches, 64 transitions, 64 policies, ID 64 bytes, canonical state/transition label과 policy detail 96 cells hard limit 및 exact initial invariant를 적용합니다.
+- Choice는 explicit `State.Kind`로만 존재하며 exactly-one ordinary inbound, 2~8 unique guarded ordinary outbound, no pseudo/self/choice-chain/policy invariant를 적용합니다.
 - State policy는 별도 statement에서 labeled concrete transition의 endpoint·event·guard를 EOF exact match하며 event/함수/enum 이름을 policy로 승격하지 않습니다.
 - Policy target event/guard의 quote는 separator ambiguity를 차단하기 위해 거부하며, policy가 없는 ordinary quoted transition label의 기존 동작은 유지합니다.
-- State renderer는 direct endpoint kind/index·pseudo orientation·duplicate semantics와 policy transition index/kind/detail/중복을 재검증하고 concrete transition마다 bounded connector lane을 예약합니다.
+- State renderer는 direct state kind·choice topology, endpoint kind/index·pseudo orientation·duplicate semantics와 policy transition index/kind/detail/중복을 재검증합니다. Ordinary concrete transition은 bounded lane, choice outbound는 choice당 bounded shared rail/trunk를 예약합니다.
 - State cycle/self feedback은 source-order reachability로 분류하며 declaration order를 cycle 의미로 사용하지 않습니다.
 - State policy는 metadata legend일 뿐 state·edge·pseudo-state·cycle 분류나 retry/timeout/compensation 실행 보장을 만들지 않습니다.
+- Choice guard는 opaque text이며 renderer는 branch exclusivity, priority, default, exhaustive coverage를 계산하거나 보장하지 않습니다.
 - ER source는 comment와 token separator를 포함해 ASCII space·tab·LF/CRLF 외 Unicode whitespace와 terminal control·format/bidi·ZWJ·variation selector를 parser 진입 시 거부합니다.
 - Self·duplicate relationship은 별도 ports/rails를 사용하고 label은 bounded `relationships:` legend에만 표시합니다.
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.

@@ -199,6 +199,10 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 		if transitionIndex < 0 {
 			return nil, perr(pendingPolicy.line, 1, "policy가 정확한 concrete transition을 참조해야 함")
 		}
+		matched := d.Transitions[transitionIndex]
+		if d.States[matched.From.Index].Kind == ChoiceState || d.States[matched.To.Index].Kind == ChoiceState {
+			return nil, perr(pendingPolicy.line, 1, "choice incident transition에는 policy를 붙일 수 없음")
+		}
 		key := fmt.Sprintf("%d/%d", transitionIndex, pendingPolicy.kind)
 		if _, exists := seenPolicies[key]; exists {
 			return nil, perr(pendingPolicy.line, 1, "중복 transition policy")
@@ -283,6 +287,11 @@ func validLabel(s string, max int) bool {
 }
 func parseState(line string, n int, l Limits) (State, error) {
 	body := strings.TrimPrefix(line, "state ")
+	kind := OrdinaryState
+	if strings.HasSuffix(body, " <<choice>>") {
+		kind = ChoiceState
+		body = strings.TrimSuffix(body, " <<choice>>")
+	}
 	if strings.HasPrefix(body, "\"") {
 		end := strings.Index(body[1:], "\"")
 		if end < 0 {
@@ -298,12 +307,12 @@ func parseState(line string, n int, l Limits) (State, error) {
 		if !validID(id, l.MaxIDBytes) || !validLabel(label, l.MaxLabelCells) {
 			return State{}, perr(n, 1, "유효하지 않은 state 선언")
 		}
-		return State{ID: id, Label: label}, nil
+		return State{ID: id, Label: label, Kind: kind}, nil
 	}
 	if !validID(body, l.MaxIDBytes) {
 		return State{}, perr(n, 1, "유효하지 않은 state ID")
 	}
-	return State{ID: body, Label: body}, nil
+	return State{ID: body, Label: body, Kind: kind}, nil
 }
 func parseTransition(line string, n int, l Limits) (Transition, string, string, error) {
 	parts := strings.Split(line, "-->")
@@ -355,12 +364,16 @@ func parseTransition(line string, n int, l Limits) (Transition, string, string, 
 			if !(strings.HasSuffix(label, "]") && strings.Count(label, "[") == 1 && strings.Count(label, "]") == 1) {
 				return tr, "", "", perr(n, 1, "유효하지 않은 guard")
 			}
-			cut := strings.LastIndex(label, " [")
-			if cut <= 0 {
-				return tr, "", "", perr(n, 1, "guard 앞 event가 필요함")
+			if strings.HasPrefix(label, "[") {
+				tr.Guard = label[1 : len(label)-1]
+			} else {
+				cut := strings.LastIndex(label, " [")
+				if cut <= 0 {
+					return tr, "", "", perr(n, 1, "guard 앞 event가 필요함")
+				}
+				tr.Event = label[:cut]
+				tr.Guard = label[cut+2 : len(label)-1]
 			}
-			tr.Event = label[:cut]
-			tr.Guard = label[cut+2 : len(label)-1]
 			if tr.Guard == "" {
 				return tr, "", "", perr(n, 1, "guard가 비어 있음")
 			}
@@ -368,6 +381,9 @@ func parseTransition(line string, n int, l Limits) (Transition, string, string, 
 			tr.Event = label
 		}
 		width, widthErr := TransitionLabelCells(tr.Event, tr.Guard)
+		if tr.Event == "" && tr.Guard != "" {
+			width, widthErr = ChoiceGuardCells(strings.Trim(tr.Guard, " \t"))
+		}
 		if widthErr != nil || width == 0 || width > l.MaxLabelCells {
 			return tr, "", "", perr(n, 1, "유효하지 않은 transition label")
 		}
@@ -432,6 +448,10 @@ func parsePolicy(line string, n int, limits Limits) (pendingPolicy, error) {
 func validateSemantics(d *Diagram, lines []int) error {
 	initial := 0
 	seen := map[string]struct{}{}
+	inbound := make([]int, len(d.States))
+	outbound := make([]int, len(d.States))
+	guards := make([]map[string]struct{}, len(d.States))
+	targets := make([]map[int]struct{}, len(d.States))
 	for index, t := range d.Transitions {
 		line := lines[index]
 		if t.From.Kind == Initial {
@@ -449,6 +469,45 @@ func validateSemantics(d *Diagram, lines []int) error {
 		if t.From.Kind == Final || t.To.Kind == Initial {
 			return perr(line, 1, "pseudo state 방향이 잘못됨")
 		}
+		fromChoice := t.From.Kind == StateRef && d.States[t.From.Index].Kind == ChoiceState
+		toChoice := t.To.Kind == StateRef && d.States[t.To.Index].Kind == ChoiceState
+		switch {
+		case fromChoice && toChoice:
+			return perr(line, 1, "choice-to-choice transition은 허용하지 않음")
+		case fromChoice:
+			if t.To.Kind != StateRef || d.States[t.To.Index].Kind != OrdinaryState || t.Event != "" || t.Guard == "" {
+				return perr(line, 1, "choice outbound는 ordinary state로 가는 guard-only transition이어야 함")
+			}
+			guard := strings.Trim(t.Guard, " \t")
+			if guard == "" {
+				return perr(line, 1, "choice guard가 비어 있음")
+			}
+			d.Transitions[index].Guard = guard
+			t.Guard = guard
+			if guards[t.From.Index] == nil {
+				guards[t.From.Index] = make(map[string]struct{})
+				targets[t.From.Index] = make(map[int]struct{})
+			}
+			if _, exists := guards[t.From.Index][guard]; exists {
+				return perr(line, 1, "choice outbound guard는 고유해야 함")
+			}
+			if _, exists := targets[t.From.Index][t.To.Index]; exists {
+				return perr(line, 1, "choice outbound target은 고유해야 함")
+			}
+			guards[t.From.Index][guard] = struct{}{}
+			targets[t.From.Index][t.To.Index] = struct{}{}
+			outbound[t.From.Index]++
+			if outbound[t.From.Index] > 8 {
+				return perr(line, 1, "choice outbound는 최대 8개임")
+			}
+		case toChoice:
+			if t.From.Kind != StateRef || d.States[t.From.Index].Kind != OrdinaryState || t.Guard != "" {
+				return perr(line, 1, "choice inbound는 ordinary state에서 오는 guard 없는 transition이어야 함")
+			}
+			inbound[t.To.Index]++
+		case t.Event == "" && t.Guard != "":
+			return perr(line, 1, "guard-only transition은 choice outbound에만 허용됨")
+		}
 		key := fmt.Sprintf("%d/%d/%d/%d/%s/%s", t.From.Kind, t.From.Index, t.To.Kind, t.To.Index, t.Event, t.Guard)
 		if _, ok := seen[key]; ok {
 			return perr(line, 1, "중복 transition")
@@ -457,6 +516,17 @@ func validateSemantics(d *Diagram, lines []int) error {
 	}
 	if initial != 1 {
 		return perr(1, 1, "initial transition은 정확히 하나여야 함")
+	}
+	for index, current := range d.States {
+		if current.Kind != ChoiceState {
+			continue
+		}
+		if inbound[index] != 1 {
+			return perr(1, 1, "choice inbound는 정확히 하나여야 함")
+		}
+		if outbound[index] < 2 {
+			return perr(1, 1, "choice outbound는 최소 두 개여야 함")
+		}
 	}
 	return nil
 }

@@ -27,6 +27,7 @@
 - Participant lifetime evidence 없이 `activate/deactivate` 사용
 - Field·index 이름, type, 관례만 보고 PK/FK/UNIQUE/NOT NULL, ordered composite mapping 또는 ER relationship 추론
 - Enum·status·함수 이름만 보고 state transition, initial/final, guard 또는 terminal lifecycle 추론
+- Choice/Decision 이름, 다중 outbound 또는 guard 존재만 보고 choice point나 branch 우선순위·default·완전성 추론
 - Event·함수·enum 이름만 보고 retry/timeout/compensation policy 또는 그 detail을 생성
 - Secret, credential, PII 또는 내부 hostname 노출
 - Renderer 실패 source를 성공 도식처럼 제시하거나 renderer stdout을 수동 편집
@@ -95,7 +96,7 @@ Submission의 축약 형태:
 ```json
 {
   "schema": "eval-pack.batch.v1",
-  "subject_id": "terminal-diagram-explainer-0.14.0",
+  "subject_id": "terminal-diagram-explainer-0.15.0",
   "corpus_digest": "<64 lowercase hex>",
   "runs": [
     {
@@ -112,7 +113,7 @@ Review의 축약 형태:
 {
   "schema": "eval-pack.review.v1",
   "evaluator_id": "independent-evaluator-01",
-  "subject_id": "terminal-diagram-explainer-0.14.0",
+  "subject_id": "terminal-diagram-explainer-0.15.0",
   "corpus_digest": "<binding corpus_digest>",
   "submission_digest": "<binding submission_digest>",
   "reviews": [

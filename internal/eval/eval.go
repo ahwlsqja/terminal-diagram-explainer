@@ -295,6 +295,15 @@ func analyze(source string) (sourceAnalysis, error) {
 		for _, current := range diagram.States {
 			features[current.ID] = true
 			features[strings.ToLower(current.Label)] = true
+			if current.Kind == state.ChoiceState {
+				features["<<choice>>"] = true
+				features["choice"] = true
+				declaration := "state " + current.ID + " <<choice>>"
+				if current.Label != current.ID {
+					declaration = "state \"" + current.Label + "\" as " + current.ID + " <<choice>>"
+				}
+				features[declaration] = true
+			}
 		}
 		transitionTexts := make([]string, len(diagram.Transitions))
 		for index, transition := range diagram.Transitions {

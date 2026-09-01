@@ -62,7 +62,7 @@ func renderStateTD(d *state.Diagram, o Options) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	n := stateConcreteCount(d)
+	n := stateConnectorLaneCount(d)
 	needW := width + 3 + 2*n
 	needH := len(d.States)*5 - 1
 	if needW > o.MaxWidth || needH > o.MaxHeight {
@@ -80,8 +80,21 @@ func renderStateTD(d *state.Diagram, o Options) (string, error) {
 		}
 	}
 	lane := 0
+	choiceRendered := make([]bool, len(d.States))
 	for _, t := range d.Transitions {
 		if t.From.Kind != state.StateRef || t.To.Kind != state.StateRef {
+			continue
+		}
+		if d.States[t.From.Index].Kind == state.ChoiceState {
+			if choiceRendered[t.From.Index] {
+				continue
+			}
+			choiceRendered[t.From.Index] = true
+			x := width + 3 + lane*2
+			lane++
+			if err := renderStateTDChoiceFanout(c, d, boxes, t.From.Index, x); err != nil {
+				return "", err
+			}
 			continue
 		}
 		from, to := boxes[t.From.Index], boxes[t.To.Index]
@@ -90,6 +103,12 @@ func renderStateTD(d *state.Diagram, o Options) (string, error) {
 		sy, ty := from.y+1, to.y+1
 		if err := c.horizontal(from.x+from.width, x, sy, false); err != nil {
 			return "", err
+		}
+		if d.States[t.To.Index].Kind == state.ChoiceState {
+			if err := renderStateTDChoiceInbound(c, from, to, x); err != nil {
+				return "", err
+			}
+			continue
 		}
 		if t.From.Index == t.To.Index {
 			err = c.vertical(x, sy-1, sy+2, false)
@@ -108,6 +127,60 @@ func renderStateTD(d *state.Diagram, o Options) (string, error) {
 	}
 	return c.String(), nil
 }
+
+func renderStateTDChoiceInbound(c *canvas, from, to placement, laneX int) error {
+	sourceY := from.y + 1
+	targetX := to.x + to.width/2
+	portY, approachY, direction := to.y, to.y-1, down
+	if sourceY > to.y {
+		portY, approachY, direction = to.y+to.height-1, to.y+to.height, up
+	}
+	if err := c.vertical(laneX, sourceY, approachY, false); err != nil {
+		return err
+	}
+	if err := c.horizontal(targetX, laneX, approachY, false); err != nil {
+		return err
+	}
+	if err := c.vertical(targetX, approachY, portY, false); err != nil {
+		return err
+	}
+	return c.arrow(targetX, portY, direction)
+}
+
+func renderStateTDChoiceFanout(c *canvas, d *state.Diagram, boxes []placement, choiceIndex, laneX int) error {
+	from := boxes[choiceIndex]
+	sourceY := from.y + 1
+	minY, maxY := sourceY, sourceY
+	for _, transition := range d.Transitions {
+		if transition.From.Kind != state.StateRef || transition.From.Index != choiceIndex || transition.To.Kind != state.StateRef {
+			continue
+		}
+		targetY := boxes[transition.To.Index].y + 1
+		minY = min(minY, targetY)
+		maxY = max(maxY, targetY)
+	}
+	if err := c.horizontal(from.x+from.width, laneX, sourceY, false); err != nil {
+		return err
+	}
+	if err := c.vertical(laneX, minY, maxY, false); err != nil {
+		return err
+	}
+	for _, transition := range d.Transitions {
+		if transition.From.Kind != state.StateRef || transition.From.Index != choiceIndex || transition.To.Kind != state.StateRef {
+			continue
+		}
+		to := boxes[transition.To.Index]
+		targetY := to.y + 1
+		if err := c.horizontal(to.x+to.width, laneX, targetY, false); err != nil {
+			return err
+		}
+		if err := c.arrow(to.x+to.width, targetY, left); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func renderStateLR(d *state.Diagram, o Options) (string, error) {
 	ws := make([]int, len(d.States))
 	total := 0
@@ -122,7 +195,7 @@ func renderStateLR(d *state.Diagram, o Options) (string, error) {
 			total += 5
 		}
 	}
-	n := stateConcreteCount(d)
+	n := stateConnectorLaneCount(d)
 	needW := total
 	for _, transition := range d.Transitions {
 		if transition.From.Kind == state.StateRef && transition.To.Kind == state.StateRef && transition.From.Index == transition.To.Index {
@@ -154,14 +227,33 @@ func renderStateLR(d *state.Diagram, o Options) (string, error) {
 		x += ws[i] + 5
 	}
 	lane := 0
+	choiceRendered := make([]bool, len(d.States))
 	for _, t := range d.Transitions {
 		if t.From.Kind != state.StateRef || t.To.Kind != state.StateRef {
+			continue
+		}
+		if d.States[t.From.Index].Kind == state.ChoiceState {
+			if choiceRendered[t.From.Index] {
+				continue
+			}
+			choiceRendered[t.From.Index] = true
+			y := 5 + lane*2
+			lane++
+			if err := renderStateLRChoiceFanout(c, d, boxes, t.From.Index, y); err != nil {
+				return "", err
+			}
 			continue
 		}
 		from, to := boxes[t.From.Index], boxes[t.To.Index]
 		y := 5 + lane*2
 		lane++
 		sx, tx := from.x+from.width/2, to.x+to.width/2
+		if d.States[t.To.Index].Kind == state.ChoiceState {
+			if err := renderStateLRChoiceInbound(c, from, to, y); err != nil {
+				return "", err
+			}
+			continue
+		}
 		if t.From.Index == t.To.Index {
 			loopX := from.x + from.width + 2
 			if err := c.vertical(sx, from.y+from.height, y, false); err != nil {
@@ -201,7 +293,66 @@ func renderStateLR(d *state.Diagram, o Options) (string, error) {
 	return c.String(), nil
 }
 
+func renderStateLRChoiceInbound(c *canvas, from, to placement, laneY int) error {
+	sourceX := from.x + from.width/2
+	portY := to.y + 1
+	portX, approachX, direction := to.x-1, to.x-2, right
+	if from.x > to.x {
+		portX, approachX, direction = to.x+to.width, to.x+to.width+1, left
+	}
+	if err := c.vertical(sourceX, from.y+from.height, laneY, false); err != nil {
+		return err
+	}
+	if err := c.horizontal(sourceX, approachX, laneY, false); err != nil {
+		return err
+	}
+	if err := c.vertical(approachX, portY, laneY, false); err != nil {
+		return err
+	}
+	if err := c.horizontal(approachX, portX, portY, false); err != nil {
+		return err
+	}
+	return c.arrow(portX, portY, direction)
+}
+
+func renderStateLRChoiceFanout(c *canvas, d *state.Diagram, boxes []placement, choiceIndex, laneY int) error {
+	from := boxes[choiceIndex]
+	sourceX := from.x + from.width/2
+	minX, maxX := sourceX, sourceX
+	for _, transition := range d.Transitions {
+		if transition.From.Kind != state.StateRef || transition.From.Index != choiceIndex || transition.To.Kind != state.StateRef {
+			continue
+		}
+		targetX := boxes[transition.To.Index].x + boxes[transition.To.Index].width/2
+		minX = min(minX, targetX)
+		maxX = max(maxX, targetX)
+	}
+	if err := c.vertical(sourceX, from.y+from.height, laneY, false); err != nil {
+		return err
+	}
+	if err := c.horizontal(minX, maxX, laneY, false); err != nil {
+		return err
+	}
+	for _, transition := range d.Transitions {
+		if transition.From.Kind != state.StateRef || transition.From.Index != choiceIndex || transition.To.Kind != state.StateRef {
+			continue
+		}
+		to := boxes[transition.To.Index]
+		targetX := to.x + to.width/2
+		if err := c.vertical(targetX, to.y+to.height, laneY, false); err != nil {
+			return err
+		}
+		if err := c.arrow(targetX, to.y+to.height, up); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func drawStateBox(c *canvas, s state.State, p placement) error {
+	if s.Kind == state.ChoiceState {
+		return drawChoiceState(c, s, p)
+	}
 	tl, tr, bl, br, h, v := "╭", "╮", "╰", "╯", "─", "│"
 	if c.ascii {
 		tl, tr, bl, br, h, v = "+", "+", "+", "+", "-", "|"
@@ -234,6 +385,37 @@ func drawStateBox(c *canvas, s state.State, p placement) error {
 	}
 	return c.putText(p.x+2, p.y+1, s.Label)
 }
+
+func drawChoiceState(c *canvas, s state.State, p placement) error {
+	topLeft, topRight, bottomLeft, bottomRight, horizontal, left, right := "╱", "╲", "╲", "╱", "─", "◁", "▷"
+	if c.ascii {
+		topLeft, topRight, bottomLeft, bottomRight, horizontal, left, right = "/", "\\", "\\", "/", "-", "<", ">"
+	}
+	for _, point := range []struct {
+		x, y int
+		text string
+	}{
+		{x: p.x + 1, y: p.y, text: topLeft},
+		{x: p.x + p.width - 2, y: p.y, text: topRight},
+		{x: p.x, y: p.y + 1, text: left},
+		{x: p.x + p.width - 1, y: p.y + 1, text: right},
+		{x: p.x + 1, y: p.y + 2, text: bottomLeft},
+		{x: p.x + p.width - 2, y: p.y + 2, text: bottomRight},
+	} {
+		if err := c.put(point.x, point.y, point.text); err != nil {
+			return err
+		}
+	}
+	for x := p.x + 2; x < p.x+p.width-2; x++ {
+		if err := c.put(x, p.y, horizontal); err != nil {
+			return err
+		}
+		if err := c.put(x, p.y+2, horizontal); err != nil {
+			return err
+		}
+	}
+	return c.putText(p.x+2, p.y+1, s.Label)
+}
 func stateBoxWidth(d *state.Diagram) (int, error) {
 	r := 0
 	for _, s := range d.States {
@@ -259,6 +441,25 @@ func stateConcreteCount(d *state.Diagram) int {
 		}
 	}
 	return n
+}
+
+func stateConnectorLaneCount(d *state.Diagram) int {
+	count := 0
+	seenChoice := make([]bool, len(d.States))
+	for _, transition := range d.Transitions {
+		if transition.From.Kind != state.StateRef || transition.To.Kind != state.StateRef {
+			continue
+		}
+		if d.States[transition.From.Index].Kind == state.ChoiceState {
+			if !seenChoice[transition.From.Index] {
+				seenChoice[transition.From.Index] = true
+				count++
+			}
+			continue
+		}
+		count++
+	}
+	return count
 }
 
 func classifyStateFeedback(d *state.Diagram) []bool {
@@ -352,6 +553,9 @@ func validateState(d *state.Diagram) error {
 	ids := map[string]struct{}{}
 	labels := map[string]struct{}{}
 	for i, s := range d.States {
+		if s.Kind != state.OrdinaryState && s.Kind != state.ChoiceState {
+			return fmt.Errorf("%w: state %d kind", ErrInvalidState, i)
+		}
 		if !validStateID(s.ID) {
 			return fmt.Errorf("%w: state %d ID", ErrInvalidState, i)
 		}
@@ -399,14 +603,15 @@ func validateState(d *state.Diagram) error {
 		if (t.From.Kind != state.StateRef || t.To.Kind != state.StateRef) && (t.Event != "" || t.Guard != "") {
 			return fmt.Errorf("%w: pseudo label", ErrInvalidState)
 		}
-		if t.Event == "" && t.Guard != "" {
-			return fmt.Errorf("%w: guard without event", ErrInvalidState)
-		}
 		if t.Event != "" || t.Guard != "" {
 			if strings.ContainsAny(t.Event, "[]") || strings.ContainsAny(t.Guard, "[]") {
 				return fmt.Errorf("%w: transition label", ErrInvalidState)
 			}
-			if w, e := state.TransitionLabelCells(t.Event, t.Guard); e != nil || w == 0 || w > 96 {
+			w, e := state.TransitionLabelCells(t.Event, t.Guard)
+			if t.Event == "" && t.Guard != "" {
+				w, e = state.ChoiceGuardCells(t.Guard)
+			}
+			if e != nil || w == 0 || w > 96 {
 				return fmt.Errorf("%w: transition label", ErrInvalidState)
 			}
 		}
@@ -418,6 +623,9 @@ func validateState(d *state.Diagram) error {
 	}
 	if initial != 1 {
 		return fmt.Errorf("%w: initial count", ErrInvalidState)
+	}
+	if err := validateChoiceTopology(d); err != nil {
+		return err
 	}
 	seenPolicies := make(map[string]struct{}, len(d.Policies))
 	for index, policy := range d.Policies {
@@ -434,6 +642,9 @@ func validateState(d *state.Diagram) error {
 		if strings.ContainsRune(transition.Event, '"') || strings.ContainsRune(transition.Guard, '"') {
 			return fmt.Errorf("%w: policy %d target label", ErrInvalidState, index)
 		}
+		if d.States[transition.From.Index].Kind == state.ChoiceState || d.States[transition.To.Index].Kind == state.ChoiceState {
+			return fmt.Errorf("%w: policy %d choice target", ErrInvalidState, index)
+		}
 		if width, err := state.PolicyDetailCells(policy.Detail); err != nil || width == 0 || width > 96 {
 			return fmt.Errorf("%w: policy %d detail", ErrInvalidState, index)
 		}
@@ -445,6 +656,58 @@ func validateState(d *state.Diagram) error {
 	}
 	return nil
 }
+
+func validateChoiceTopology(d *state.Diagram) error {
+	inbound := make([]int, len(d.States))
+	outbound := make([]int, len(d.States))
+	guards := make([]map[string]struct{}, len(d.States))
+	targets := make([]map[int]struct{}, len(d.States))
+	for index, transition := range d.Transitions {
+		fromChoice := transition.From.Kind == state.StateRef && d.States[transition.From.Index].Kind == state.ChoiceState
+		toChoice := transition.To.Kind == state.StateRef && d.States[transition.To.Index].Kind == state.ChoiceState
+		switch {
+		case fromChoice && toChoice:
+			return fmt.Errorf("%w: choice-to-choice transition", ErrInvalidState)
+		case fromChoice:
+			if transition.To.Kind != state.StateRef || d.States[transition.To.Index].Kind != state.OrdinaryState || transition.Event != "" || transition.Guard == "" || transition.Guard != strings.Trim(transition.Guard, " \t") {
+				return fmt.Errorf("%w: choice outbound %d", ErrInvalidState, index)
+			}
+			if guards[transition.From.Index] == nil {
+				guards[transition.From.Index] = make(map[string]struct{})
+				targets[transition.From.Index] = make(map[int]struct{})
+			}
+			if _, exists := guards[transition.From.Index][transition.Guard]; exists {
+				return fmt.Errorf("%w: duplicate choice guard", ErrInvalidState)
+			}
+			if _, exists := targets[transition.From.Index][transition.To.Index]; exists {
+				return fmt.Errorf("%w: duplicate choice target", ErrInvalidState)
+			}
+			guards[transition.From.Index][transition.Guard] = struct{}{}
+			targets[transition.From.Index][transition.To.Index] = struct{}{}
+			outbound[transition.From.Index]++
+			if outbound[transition.From.Index] > 8 {
+				return fmt.Errorf("%w: choice outbound limit", ErrInvalidState)
+			}
+		case toChoice:
+			if transition.From.Kind != state.StateRef || d.States[transition.From.Index].Kind != state.OrdinaryState || transition.Guard != "" {
+				return fmt.Errorf("%w: choice inbound %d", ErrInvalidState, index)
+			}
+			inbound[transition.To.Index]++
+		case transition.Event == "" && transition.Guard != "":
+			return fmt.Errorf("%w: guard-only ordinary transition", ErrInvalidState)
+		}
+	}
+	for index, current := range d.States {
+		if current.Kind != state.ChoiceState {
+			continue
+		}
+		if inbound[index] != 1 || outbound[index] < 2 {
+			return fmt.Errorf("%w: choice topology %d", ErrInvalidState, index)
+		}
+	}
+	return nil
+}
+
 func validStateID(s string) bool {
 	if len(s) == 0 || len(s) > 64 {
 		return false

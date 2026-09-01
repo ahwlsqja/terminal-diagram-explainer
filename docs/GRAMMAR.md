@@ -1,4 +1,4 @@
-# 0.14 문법
+# 0.15 문법
 
 ## Header
 
@@ -202,13 +202,15 @@ stateDiagram-v2
 direction TD
 state "검증 중" as Validating
 state Committing
+state CommitOutcome <<choice>>
 state Backoff
 state Acked
 [*] --> Validating
 Validating --> Committing : valid
-Committing --> Backoff : transient failure [attempt below 3]
+Committing --> CommitOutcome : commit result
+CommitOutcome --> Backoff : [transient failure and attempt below 3]
+CommitOutcome --> Acked : [commit succeeds]
 Backoff --> Committing : retry
-Committing --> Acked : commit succeeds
 Acked --> [*]
 policy Backoff --> Committing : retry :: retry "attempt below 3"
 ```
@@ -219,14 +221,18 @@ policy Backoff --> Committing : retry :: retry "attempt below 3"
 - Concrete transition은 `A --> B`, `A --> B : event`, `A --> B : event [guard]`입니다. Colon이 있으면 nonempty event가 필요하고 guard는 하나의 trailing nonempty bracket입니다.
 - `[*] --> State` initial은 정확히 하나 필요합니다. `State --> [*]` final은 0개 이상 허용하며 pseudo transition에는 event/guard를 붙이지 않습니다.
 - Exact duplicate transition은 거부하고 event/guard가 다른 transition은 source order로 보존합니다. Self/cycle도 명시 source order로 유지합니다.
+- Choice declaration은 exact `state ID <<choice>>` 또는 `state "display label" as ID <<choice>>`입니다. `Choice`, `Decision` 같은 ID/label이나 ordinary state의 다중 outbound를 choice로 승격하지 않습니다.
+- Choice는 ordinary state에서 정확히 하나의 guard 없는 inbound와 서로 다른 ordinary target으로 2~8개의 guard-only outbound `Choice --> Target : [guard]`를 가져야 합니다. Choice-to-choice, self, initial/final 직접 연결은 거부합니다.
+- Choice guard는 ASCII space/tab을 양끝에서 제거해 canonicalize하고 같은 choice 안에서 exact unique여야 합니다. Guard의 의미적 상호배타성·우선순위·default·완전성은 검증하거나 추론하지 않습니다.
+- Guard-only transition은 choice outbound에만 허용합니다. Choice incident transition에는 retry/timeout/compensation policy를 붙일 수 없습니다.
 - Transition policy는 `policy <exact labeled concrete transition> :: <kind> "detail"` 형식입니다. Kind는 exact `retry`, `timeout`, `compensation` 세 개이며 policy statement는 참조하는 transition보다 앞에 올 수 있습니다.
 - Policy는 endpoint·event·guard가 모두 같은 기존 transition을 EOF에서 참조합니다. Pseudo/unlabeled/missing transition, 같은 transition의 같은 kind 중복, unquoted·empty detail은 거부합니다. 한 transition에 서로 다른 kind는 source order로 허용합니다.
 - Ordinary transition event/guard의 quote는 기존 호환성을 위해 허용하지만, quoted label은 policy separator와 구분할 수 없으므로 policy target으로 참조할 수 없습니다.
 - Policy는 renderer metadata이며 state·transition·initial/final·feedback 분류를 생성하거나 바꾸지 않습니다. Detail은 source에서 직접 확인된 정책 원문이고 duration·attempt·backoff·rollback 보장을 계산하지 않습니다.
-- 최대 32 states, 64 transitions, 64 policies, ID 64 bytes, state label·canonical `event [guard]`·policy detail 각각 96 cells입니다.
+- 최대 32 total ordinary/choice states, choice당 8 branches, 64 transitions, 64 policies, ID 64 bytes, state label·canonical `event [guard]`/`[guard]`·policy detail 각각 96 cells입니다.
 - Renderer는 state box 사이에 bounded connector lane을 예약합니다. Cycle/self는 reachability로 분류해 `feedback:` legend에, 나머지는 `transitions:` legend에 source order로 표시합니다.
 - Transition label의 policy-like suffix는 backward-compatible ordinary event text이며 policy로 해석하지 않습니다.
-- Composite/nested state, fork/join/choice/history, note/style, concurrency와 이름 기반 policy 승격은 지원하지 않습니다.
+- Composite/nested state, fork/join/history, note/style, concurrency와 이름 기반 choice/policy 승격은 지원하지 않습니다.
 
 ## Rejected input
 
@@ -236,4 +242,4 @@ policy Backoff --> Committing : retry :: retry "attempt below 3"
 - 렌더되는 label에서 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
 - Sequence/ER note, ER relationship attributes·inheritance·weak entity·inferred cardinality, Flow 방향 `RL`, `BT`
-- State composite/fork/join/choice/history/note/style과 exact subset 밖의 state 문법
+- State composite/fork/join/history/note/style과 exact subset 밖의 state 문법

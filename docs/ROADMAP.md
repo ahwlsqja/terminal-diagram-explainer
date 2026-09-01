@@ -102,7 +102,7 @@
 - State-to-state connector를 bounded gutter로 렌더하고 source-order greedy reachability로 cycle/self feedback을 분류합니다.
 - Forward endpoint는 EOF에서 resolve하며 undeclared state와 암묵 state 생성을 거부합니다.
 - Enum·함수·status 이름에서 transition/initial/final/guard를 추론하지 않고 fixed-18 corpus에 positive lifecycle과 negative evidence-gap을 고정합니다.
-- Composite state, fork/join/choice/history와 transition policy의 구조적 실행 의미는 다음 확장으로 남깁니다.
+- Composite state, fork/join/history와 transition policy의 구조적 실행 의미는 다음 확장으로 남깁니다.
 
 ## 13. Explicit Transition Policy — 완료 (0.14.0)
 
@@ -111,7 +111,17 @@
 - Policy는 transition index metadata로만 보존하며 state·edge·pseudo-state·cycle 분류를 만들거나 바꾸지 않습니다.
 - 동일 transition의 동일 kind 중복은 거부하고, 최대 64 policies와 96-cell detail hard limit을 parser와 renderer 양쪽에서 검증합니다.
 - Event·함수·enum 이름을 policy로 승격하지 않으며 fixed-18 corpus에 positive retry policy와 negative identifier-only case를 고정합니다.
-- Composite/fork/join/choice/history, timer clock origin, retry scheduler, compensation 성공·원자성·idempotency 보장은 별도 확장으로 남깁니다.
+- Composite/fork/join/history, timer clock origin, retry scheduler, compensation 성공·원자성·idempotency 보장은 별도 확장으로 남깁니다.
+
+## 14. Explicit Choice State — 완료 (0.15.0)
+
+- Mermaid-compatible `state ID <<choice>>`와 alias declaration을 `State.Kind` metadata로 보존합니다.
+- Choice마다 ordinary state에서 정확히 1 inbound, 서로 다른 ordinary target으로 2~8 guarded outbound를 요구합니다.
+- Guard-only transition은 choice outbound에만 허용하고 guard를 ASCII trim canonical form으로 보존하며 exact duplicate를 거부합니다.
+- Choice-to-choice/self/pseudo 연결과 choice incident policy를 parser와 direct-AST renderer 양쪽에서 fail-closed 처리합니다.
+- 기존 dense state index와 source-order reachability feedback을 유지하고, choice는 bounded diamond와 inbound 전용 port·choice당 shared fan-out rail/trunk로 렌더링합니다.
+- Choice 이름·다중 outbound·guard만으로 decision point를 추론하지 않으며 fixed-18 corpus에 positive explicit choice와 negative identifier-only case를 고정합니다.
+- Guard의 의미적 상호배타성·우선순위·default·완전성, fork/join/history/composite는 별도 확장으로 남깁니다.
 
 ## 공통 완료 게이트
 

@@ -55,3 +55,20 @@ func TestRunRendersExplicitTransitionPolicy(t *testing.T) {
 		t.Fatalf("state policy output=%q", out.String())
 	}
 }
+
+func TestRunRendersExplicitChoiceWithoutPartialOutput(t *testing.T) {
+	input := "stateDiagram-v2\n[*] --> Pending\nPending --> Decide : evaluated\nDecide --> A : [a]\nDecide --> B : [b]\nstate Pending\nstate Decide <<choice>>\nstate A\nstate B\n"
+	var out, errOut bytes.Buffer
+	if code := Run(nil, strings.NewReader(input), &out, &errOut); code != 0 {
+		t.Fatalf("code=%d stderr=%s", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "◁ Decide") || !strings.Contains(out.String(), "▷") || !strings.Contains(out.String(), "Decide --> A : [a]") {
+		t.Fatalf("choice output=%q", out.String())
+	}
+	out.Reset()
+	errOut.Reset()
+	invalid := strings.Replace(input, "Decide --> B : [b]", "Decide --> B : b", 1)
+	if code := Run(nil, strings.NewReader(invalid), &out, &errOut); code != 2 || out.Len() != 0 {
+		t.Fatalf("invalid choice code=%d stdout=%q stderr=%q", code, out.String(), errOut.String())
+	}
+}

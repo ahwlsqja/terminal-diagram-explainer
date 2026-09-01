@@ -67,6 +67,12 @@ Lifecycle은 state 목록보다 transition contract를 먼저 확인한다. Sour
 
 Event·command·method·result는 transition label 후보이지 state 후보가 아니다. State로 명시된 명사만 box로 만들고 event를 state로 승격하지 않는다.
 
+Choice는 지속 state가 아니라 명시적 runtime decision point다. Decision contract, 정확히 하나의 inbound, branch guard와 target을 각각 확인하고 `Choice`, `Decision`, `shouldChoose` 같은 이름으로 빈칸을 채우지 않는다.
+
+- Choice branch guard는 source text 그대로 보존하고 source order는 display order로만 다룬다.
+- 상호배타성, 우선순위, first-match, default/else, exhaustive coverage는 각각 별도 direct evidence가 없으면 주장하지 않는다.
+- Choice incident transition에는 retry/timeout/compensation policy를 붙이지 않는다. Policy가 필요하면 choice 전후 ordinary-state transition에서 별도 contract를 확인한다.
+
 Retry·timeout·compensation policy는 event 이름과 별개로 검증한다. Exact source→target transition과 event/guard 외에 policy kind와 detail의 direct runtime contract가 있어야 별도 policy statement를 만든다.
 
 - Retry: attempt limit, backoff·jitter, 재진입 target은 각각 확인된 값만 보존한다. 하나를 확인했다고 나머지를 채우지 않는다.

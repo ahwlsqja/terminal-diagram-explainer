@@ -33,9 +33,17 @@ type Endpoint struct {
 	Index int
 }
 
+type StateKind uint8
+
+const (
+	OrdinaryState StateKind = iota
+	ChoiceState
+)
+
 type State struct {
 	ID    string
 	Label string
+	Kind  StateKind
 }
 
 type Transition struct {
@@ -75,12 +83,23 @@ type TransitionPolicy struct {
 
 func (t Transition) Label() string {
 	if t.Event == "" {
+		if t.Guard != "" {
+			return "[" + t.Guard + "]"
+		}
 		return ""
 	}
 	if t.Guard == "" {
 		return t.Event
 	}
 	return t.Event + " [" + t.Guard + "]"
+}
+
+func ChoiceGuardCells(guard string) (int, error) {
+	width, err := TextCells(guard)
+	if err != nil {
+		return 0, err
+	}
+	return width + 2, nil
 }
 
 func TextCells(text string) (int, error) {

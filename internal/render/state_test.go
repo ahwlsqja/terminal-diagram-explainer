@@ -252,3 +252,218 @@ func TestStateRendererRejectsHostileDirectPolicies(t *testing.T) {
 		}
 	}
 }
+
+func TestStateRendererDrawsExplicitChoiceAndFeedback(t *testing.T) {
+	diagram, err := state.Parse(`stateDiagram-v2
+[*] --> Pending
+Pending --> Decide : evaluated
+Decide --> Accepted : [accepted]
+Decide --> Pending : [retry]
+state Pending
+state "승인 결과" as Decide <<choice>>
+state Accepted
+`, state.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		options Options
+		marker  string
+	}{
+		{options: DefaultOptions(), marker: "◁ 승인 결과 ▷"},
+		{options: Options{ASCII: true, MaxWidth: 240, MaxHeight: 200}, marker: "< 승인 결과 >"},
+	} {
+		output, renderErr := State(diagram, test.options)
+		if renderErr != nil {
+			t.Fatal(renderErr)
+		}
+		if !strings.Contains(output, test.marker) || !strings.Contains(output, "Decide --> Accepted : [accepted]") {
+			t.Fatalf("choice output missing marker=%q:\n%s", test.marker, output)
+		}
+		if !strings.Contains(output, "feedback:\nDecide --> Pending : [retry]") {
+			t.Fatalf("choice feedback missing:\n%s", output)
+		}
+	}
+}
+
+func TestStateChoiceUsesDistinctInboundAndFanoutPorts(t *testing.T) {
+	diagram, err := state.Parse(`stateDiagram-v2
+[*] --> Pending
+Pending --> Decide : evaluated
+Decide --> Approved : [approved]
+Decide --> Rejected : [rejected]
+state Pending
+state "승인 결과" as Decide <<choice>>
+state Approved
+state Rejected
+`, state.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		name      string
+		direction state.Direction
+		options   Options
+		forbidden string
+		required  string
+	}{
+		{name: "TD Unicode", direction: state.TopDown, options: DefaultOptions(), forbidden: "▷◀", required: "▷─"},
+		{name: "TD ASCII", direction: state.TopDown, options: Options{ASCII: true, MaxWidth: 240, MaxHeight: 200}, forbidden: "><", required: ">-"},
+		{name: "LR Unicode", direction: state.LeftRight, options: DefaultOptions(), required: "▶◁ 승인 결과 ▷"},
+		{name: "LR ASCII", direction: state.LeftRight, options: Options{ASCII: true, MaxWidth: 240, MaxHeight: 200}, required: ">< 승인 결과 >"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			diagram.Direction = test.direction
+			output, renderErr := State(diagram, test.options)
+			if renderErr != nil {
+				t.Fatal(renderErr)
+			}
+			if test.forbidden != "" && strings.Contains(output, test.forbidden) {
+				t.Fatalf("shared port overlap %q:\n%s", test.forbidden, output)
+			}
+			if !strings.Contains(output, test.required) {
+				t.Fatalf("distinct port marker %q missing:\n%s", test.required, output)
+			}
+			width, height := measureStateOutput(output)
+			canvasWidth, canvasHeight := choiceCanvasBounds(t, diagram)
+			width = max(width, canvasWidth)
+			height = max(height, canvasHeight)
+			tight := test.options
+			tight.MaxWidth, tight.MaxHeight = width, height
+			if _, err := State(diagram, tight); err != nil {
+				t.Fatalf("tight bounds %dx%d: %v", width, height, err)
+			}
+			tight.MaxWidth--
+			if _, err := State(diagram, tight); !errors.Is(err, ErrOutputBounds) {
+				t.Fatalf("width-1 bound err=%v", err)
+			}
+			tight.MaxWidth, tight.MaxHeight = width, height-1
+			if _, err := State(diagram, tight); !errors.Is(err, ErrOutputBounds) {
+				t.Fatalf("height-1 bound err=%v", err)
+			}
+		})
+	}
+}
+
+func TestStateChoiceInboundPreservesDiamondInReverseOrder(t *testing.T) {
+	diagram, err := state.Parse(`stateDiagram-v2
+[*] --> Pending
+Pending --> Decide : evaluated
+Decide --> Approved : [approved]
+Decide --> Rejected : [rejected]
+state "승인 결과" as Decide <<choice>>
+state Pending
+state Approved
+state Rejected
+`, state.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		direction state.Direction
+		options   Options
+		marker    string
+		arrow     string
+	}{
+		{direction: state.TopDown, options: DefaultOptions(), marker: "◁ 승인 결과 ▷", arrow: "▲"},
+		{direction: state.TopDown, options: Options{ASCII: true, MaxWidth: 240, MaxHeight: 200}, marker: "< 승인 결과 >", arrow: "^"},
+		{direction: state.LeftRight, options: DefaultOptions(), marker: "◁ 승인 결과 ▷◀"},
+		{direction: state.LeftRight, options: Options{ASCII: true, MaxWidth: 240, MaxHeight: 200}, marker: "< 승인 결과 ><"},
+	} {
+		diagram.Direction = test.direction
+		output, renderErr := State(diagram, test.options)
+		if renderErr != nil {
+			t.Fatal(renderErr)
+		}
+		if !strings.Contains(output, test.marker) {
+			t.Fatalf("reverse-order diamond marker %q missing:\n%s", test.marker, output)
+		}
+		if test.arrow != "" && !strings.Contains(output, test.arrow) {
+			t.Fatalf("reverse-order inbound arrow %q missing:\n%s", test.arrow, output)
+		}
+	}
+}
+
+func choiceCanvasBounds(t *testing.T, diagram *state.Diagram) (int, int) {
+	t.Helper()
+	lanes := stateConnectorLaneCount(diagram)
+	if diagram.Direction == state.TopDown {
+		width, err := stateBoxWidth(diagram)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return width + 3 + 2*lanes, len(diagram.States)*5 - 1
+	}
+	width := 0
+	boxWidths := make([]int, len(diagram.States))
+	for index, current := range diagram.States {
+		boxWidth, err := stateSingleBoxWidth(current)
+		if err != nil {
+			t.Fatal(err)
+		}
+		boxWidths[index] = boxWidth
+		width += boxWidth
+		if index > 0 {
+			width += 5
+		}
+	}
+	for _, transition := range diagram.Transitions {
+		if transition.From.Kind != state.StateRef || transition.To.Kind != state.StateRef || transition.From.Index != transition.To.Index {
+			continue
+		}
+		boxRight := 0
+		for index := 0; index <= transition.From.Index; index++ {
+			boxRight += boxWidths[index]
+			if index > 0 {
+				boxRight += 5
+			}
+		}
+		width = max(width, boxRight+3)
+	}
+	return width, 6 + 2*lanes
+}
+
+func TestStateRendererRejectsHostileDirectChoices(t *testing.T) {
+	base := &state.Diagram{
+		States: []state.State{
+			{ID: "A", Label: "A"},
+			{ID: "X", Label: "X", Kind: state.ChoiceState},
+			{ID: "B", Label: "B"},
+			{ID: "C", Label: "C"},
+		},
+		Transitions: []state.Transition{
+			{From: state.Endpoint{Kind: state.Initial, Index: -1}, To: state.Endpoint{Kind: state.StateRef, Index: 0}},
+			{From: state.Endpoint{Kind: state.StateRef, Index: 0}, To: state.Endpoint{Kind: state.StateRef, Index: 1}, Event: "evaluated"},
+			{From: state.Endpoint{Kind: state.StateRef, Index: 1}, To: state.Endpoint{Kind: state.StateRef, Index: 2}, Guard: "b"},
+			{From: state.Endpoint{Kind: state.StateRef, Index: 1}, To: state.Endpoint{Kind: state.StateRef, Index: 3}, Guard: "c"},
+		},
+	}
+	mutations := []func(*state.Diagram){
+		func(d *state.Diagram) { d.States[1].Kind = state.StateKind(99) },
+		func(d *state.Diagram) { d.Transitions = d.Transitions[:3] },
+		func(d *state.Diagram) { d.Transitions = append(d.Transitions, d.Transitions[1]) },
+		func(d *state.Diagram) { d.Transitions[2].Event = "branch" },
+		func(d *state.Diagram) { d.Transitions[2].Guard = "" },
+		func(d *state.Diagram) { d.Transitions[3].Guard = "b" },
+		func(d *state.Diagram) { d.Transitions[3].To.Index = 2 },
+		func(d *state.Diagram) { d.Transitions[0].To.Index = 1 },
+		func(d *state.Diagram) {
+			d.Policies = []state.TransitionPolicy{{TransitionIndex: 1, Kind: state.TimeoutPolicy, Detail: "deadline"}}
+		},
+	}
+	for _, mutate := range mutations {
+		diagram := cloneStateDiagram(base)
+		mutate(diagram)
+		if _, err := State(diagram, DefaultOptions()); !errors.Is(err, ErrInvalidState) {
+			t.Fatalf("hostile choice accepted: %#v err=%v", diagram, err)
+		}
+	}
+}
+
+func cloneStateDiagram(diagram *state.Diagram) *state.Diagram {
+	clone := *diagram
+	clone.States = append([]state.State(nil), diagram.States...)
+	clone.Transitions = append([]state.Transition(nil), diagram.Transitions...)
+	clone.Policies = append([]state.TransitionPolicy(nil), diagram.Policies...)
+	return &clone
+}

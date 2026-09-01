@@ -312,3 +312,94 @@ func TestParsePolicyLimitsAndDetailCellBoundary(t *testing.T) {
 		t.Fatal("97-cell policy detail accepted")
 	}
 }
+
+func TestParseExplicitChoiceWithForwardReferences(t *testing.T) {
+	source := `stateDiagram-v2
+[*] --> Pending
+Pending --> Decide : evaluated
+Decide --> Approved : [approved]
+Decide --> Declined : [ declined ]
+state Pending
+state "승인 결과" as Decide <<choice>>
+state Approved
+state Declined
+`
+	diagram, err := Parse(source, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diagram.States[1].Kind != ChoiceState || diagram.States[1].ID != "Decide" || diagram.States[1].Label != "승인 결과" {
+		t.Fatalf("choice=%#v", diagram.States[1])
+	}
+	if diagram.Transitions[2].Event != "" || diagram.Transitions[2].Guard != "approved" || diagram.Transitions[3].Guard != "declined" {
+		t.Fatalf("choice branches=%#v", diagram.Transitions[2:])
+	}
+}
+
+func TestParseChoiceNameDoesNotPromoteOrdinaryState(t *testing.T) {
+	source := "stateDiagram-v2\n[*] --> Choice\nChoice --> A : approved\nChoice --> B : rejected\nstate Choice\nstate A\nstate B\n"
+	diagram, err := Parse(source, DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if diagram.States[0].Kind != OrdinaryState {
+		t.Fatalf("ordinary Choice name promoted: %#v", diagram.States[0])
+	}
+}
+
+func TestParseRejectsInvalidChoiceTopology(t *testing.T) {
+	validStates := "state A\nstate B\nstate C\nstate D\nstate X <<choice>>\n"
+	for _, transitions := range []string{
+		"[*] --> A\nX --> B : [b]\nX --> C : [c]\n",
+		"[*] --> A\nA --> X\nD --> X\nX --> B : [b]\nX --> C : [c]\n",
+		"[*] --> A\nA --> X\nX --> B : [b]\n",
+		"[*] --> A\nA --> X\nX --> B\nX --> C : [c]\n",
+		"[*] --> A\nA --> X\nX --> B : branch [b]\nX --> C : [c]\n",
+		"[*] --> A\nA --> X\nX --> B : [same]\nX --> C : [ same ]\n",
+		"[*] --> A\nA --> X\nX --> B : [b]\nX --> B : [c]\n",
+		"[*] --> X\nX --> B : [b]\nX --> C : [c]\n",
+		"[*] --> A\nA --> X\nX --> [*]\nX --> C : [c]\n",
+		"[*] --> A\nA --> X : evaluate [ready]\nX --> B : [b]\nX --> C : [c]\n",
+	} {
+		if _, err := Parse("stateDiagram-v2\n"+transitions+validStates, DefaultLimits()); err == nil {
+			t.Fatalf("accepted invalid choice topology: %q", transitions)
+		}
+	}
+	choiceChain := "stateDiagram-v2\n[*] --> A\nA --> X\nX --> Y : [x]\nX --> B : [b]\nY --> B : [y]\nY --> C : [c]\nstate A\nstate B\nstate C\nstate X <<choice>>\nstate Y <<choice>>\n"
+	if _, err := Parse(choiceChain, DefaultLimits()); err == nil {
+		t.Fatal("choice-to-choice transition accepted")
+	}
+}
+
+func TestParseChoiceBranchBoundsAndPolicyIsolation(t *testing.T) {
+	var source strings.Builder
+	source.WriteString("stateDiagram-v2\n[*] --> Start\nStart --> Decide : evaluated\nstate Start\nstate Decide <<choice>>\n")
+	for index := 0; index < 8; index++ {
+		id := "S" + strconv.Itoa(index)
+		source.WriteString("state " + id + "\n")
+		source.WriteString("Decide --> " + id + " : [g" + strconv.Itoa(index) + "]\n")
+	}
+	if _, err := Parse(source.String(), DefaultLimits()); err != nil {
+		t.Fatalf("8 choice branches rejected: %v", err)
+	}
+	source.WriteString("state S8\nDecide --> S8 : [g8]\n")
+	if _, err := Parse(source.String(), DefaultLimits()); err == nil {
+		t.Fatal("9 choice branches accepted")
+	}
+	policy := "stateDiagram-v2\n[*] --> A\nA --> X : evaluated\nX --> B : [b]\nX --> C : [c]\nstate A\nstate B\nstate C\nstate X <<choice>>\npolicy A --> X : evaluated :: timeout \"request deadline\"\n"
+	if _, err := Parse(policy, DefaultLimits()); err == nil {
+		t.Fatal("policy on choice incident transition accepted")
+	}
+}
+
+func TestParseRejectsMalformedChoiceDeclarationsAndOrdinaryGuardOnly(t *testing.T) {
+	for _, source := range []string{
+		"stateDiagram-v2\n[*] --> A\nstate A <<Choice>>\n",
+		"stateDiagram-v2\n[*] --> A\nstate A <<choice>> <<choice>>\n",
+		"stateDiagram-v2\n[*] --> A\nA --> B : [guard]\nstate A\nstate B\n",
+	} {
+		if _, err := Parse(source, DefaultLimits()); err == nil {
+			t.Fatalf("accepted malformed choice source: %q", source)
+		}
+	}
+}

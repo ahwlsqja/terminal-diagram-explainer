@@ -68,6 +68,10 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - `DLQ -- publish succeeds --> Acked`처럼 event가 두 state 사이에 주어지면 `DLQ --> Acked : publish succeeds`로 표시한다. `publish succeeds`나 `published`를 state로 만들지 않는다.
 - Initial은 bootstrap contract, final은 terminal contract가 직접 확인될 때만 `[*]`로 표시한다. `Done`, `Failed`, `isTerminal`, `transitionToRetry` 같은 이름은 증거가 아니다.
 - Event는 해당 transition을 발생시키는 trigger가, guard는 그 transition을 실제로 제어하는 조건이 source에 있을 때만 붙인다. Alias도 명시 display mapping이 있을 때만 사용한다.
+- Runtime이 하나의 decision point에서 guard로 다음 lifecycle state를 선택한다는 직접 contract가 있을 때만 `state ID <<choice>>` 또는 alias choice를 사용한다. Choice/Decision 이름, enum, 함수, 다중 outbound, guard 존재만으로 choice를 만들지 않는다.
+- Choice마다 ordinary state에서 정확히 하나의 inbound와 서로 다른 ordinary target으로 2~8개의 `: [guard]` branch를 직접 확인한다. Choice-to-choice·self·initial/final 직접 연결이나 choice incident policy를 만들지 않는다.
+- Choice guard는 확인된 source text만 보존한다. Guard 순서를 실행 우선순위로 설명하거나 상호배타성·default·else·완전성을 일반 관례로 채우지 않는다.
+- Choice는 presentation상 inbound source 뒤, branch target 앞에 선언해 흐름을 읽기 쉽게 한다. 이 declaration/source order를 guard 우선순위나 runtime evaluation order라고 설명하지 않는다.
 - `retry`, `timeout`, `compensate`라는 event·함수·enum 이름은 transition policy evidence가 아니다. Policy kind와 detail이 별도 runtime contract로 직접 확인될 때만 `policy <exact labeled transition> :: <retry|timeout|compensation> "detail"`을 사용한다.
 - Policy statement는 endpoint·event·guard가 모두 같은 기존 transition을 그대로 반복한다. Detail에는 source가 직접 명시한 attempt limit·backoff·deadline 기준·compensation action만 보존하고 미확인 값을 채우지 않는다.
 - Policy는 transition metadata일 뿐이다. Retry policy에서 새 loop/backoff state를, timeout policy에서 timer/final state를, compensation policy에서 inverse edge·성공·전체 rollback·원자성·idempotency를 자동 생성하거나 보장하지 않는다.
@@ -77,7 +81,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - UNIQUE와 NOT NULL은 DDL·ORM schema constraint 또는 명시 schema contract에 직접 존재할 때만 표시한다. `email`, `is_unique`, `required`, non-pointer type, PK 관례, 애플리케이션 중복 검사는 constraint evidence가 아니다.
 - PK에서 NOT NULL을, UNIQUE에서 business identity를 자동 유도하지 않는다. 직접 근거가 없으면 marker를 생략한다.
 - ER relationship label도 evidence가 필요하다. DDL의 `REFERENCES`만 확인되면 `references`처럼 source에 있는 중립 용어를 사용하고, `owns`, `has`, `places` 같은 business verb를 만들지 않는다.
-- Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK/UNIQUE/NOT NULL=DDL·ORM schema constraint, cardinality=명시 schema/contract, transition policy=explicit kind·detail runtime contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
+- Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK/UNIQUE/NOT NULL=DDL·ORM schema constraint, cardinality=명시 schema/contract, choice=explicit decision point·guarded branch contract, transition policy=explicit kind·detail runtime contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
 - Transition label의 policy-like text는 ordinary event로만 보존하며 policy로 승격하지 않는다.
 - 현재 버전은 named constraint, DEFAULT/CHECK/action, inline table constraint, state composite/fork/join/history/note/style, class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.

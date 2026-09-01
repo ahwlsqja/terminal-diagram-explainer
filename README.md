@@ -89,13 +89,15 @@ stateDiagram-v2
 direction TD
 state "검증 중" as Validating
 state Committing
+state CommitOutcome <<choice>>
 state Backoff
 state Acked
 [*] --> Validating
 Validating --> Committing : valid
-Committing --> Backoff : transient failure [attempt below 3]
+Committing --> CommitOutcome : commit result
+CommitOutcome --> Backoff : [transient failure and attempt below 3]
+CommitOutcome --> Acked : [commit succeeds]
 Backoff --> Committing : retry
-Committing --> Acked : commit succeeds
 Acked --> [*]
 policy Backoff --> Committing : retry :: retry "attempt below 3"
 ```
@@ -104,11 +106,13 @@ policy Backoff --> Committing : retry :: retry "attempt below 3"
 - State는 `state ID` 또는 `state "display label" as ID`로 명시 선언하며 transition endpoint가 state를 자동 생성하지 않습니다.
 - Concrete transition은 `A --> B`, `A --> B : event`, `A --> B : event [guard]`입니다. Event와 guard를 분리해 보존합니다.
 - Initial은 정확히 하나의 `[*] --> State`, final은 0개 이상의 `State --> [*]`이며 pseudo transition에는 label을 붙이지 않습니다.
+- Choice는 `state ID <<choice>>` 또는 `state "display label" as ID <<choice>>`로만 명시합니다. Ordinary state에서 정확히 하나의 inbound, 서로 다른 ordinary target으로 2~8개의 `: [guard]` outbound가 필요합니다.
+- Choice guard는 source text를 보존하는 opaque 조건입니다. 상호배타성·우선순위·default·완전성을 계산하거나 추론하지 않으며 choice incident transition에는 policy를 붙이지 않습니다.
 - 직접 확인된 transition policy는 `policy <exact labeled transition> :: <retry|timeout|compensation> "detail"`로 별도 선언합니다. Policy는 기존 transition을 EOF에서 정확히 참조하며 state나 edge를 만들지 않습니다.
 - Policy detail은 source contract의 원문만 보존합니다. Retry 횟수·backoff, timeout 기준, compensation action·성공·원자성·idempotency를 자동 추론하지 않습니다.
 - 최대 32 states, 64 transitions, 64 policies, ID 64 bytes, state/transition/policy detail 96 cells입니다.
 - Self/cycle은 bounded connector와 `feedback:` legend로 표시하며 disconnected state도 source order로 보존합니다.
-- Composite/nested state, fork/join/choice/history, note/style과 이름 기반 정책 승격은 지원하지 않습니다. Transition label의 policy-like text는 ordinary event로만 보존하며 policy가 되지 않습니다.
+- Composite/nested state, fork/join/history, note/style과 이름 기반 choice/policy 승격은 지원하지 않습니다. Transition label의 policy-like text는 ordinary event로만 보존하며 policy가 되지 않습니다.
 
 ## 개발 검증
 

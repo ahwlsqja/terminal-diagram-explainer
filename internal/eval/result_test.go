@@ -278,7 +278,7 @@ func TestValidateStateResultUsesParsedTransitionsNotComments(t *testing.T) {
 	}
 
 	missing := cloneResult(t, result)
-	transition := "Committing --> Backoff : transient failure [attempt below 3]"
+	transition := "CommitOutcome --> Backoff : [transient failure and attempt below 3]"
 	policy := "policy Backoff --> Committing : retry :: retry \"attempt below 3\""
 	missing.DiagramSource = strings.Replace(missing.DiagramSource, transition+"\n", "", 1)
 	missing.DiagramSource = strings.Replace(missing.DiagramSource, policy, "", 1) + "\n%% " + transition + "\n%% " + policy
