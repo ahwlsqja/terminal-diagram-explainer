@@ -1,4 +1,4 @@
-# 0.15 문법
+# 0.16 문법
 
 ## Header
 
@@ -42,6 +42,17 @@ B -.->|retry| A
 - `-.->`는 비동기·실패·보조 흐름에 사용합니다.
 - cycle과 self-loop는 지원합니다. Feedback edge는 source edge order에 따라 결정적으로 선택되며 외곽 gutter와 `feedback:` legend로 표현됩니다.
 - 중간 rank를 건너뛰는 forward edge는 외곽 gutter를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
+- 인접 rank의 forward edge는 source-order tie-break를 가진 bounded median sweep과 edge별 lane을 사용합니다.
+- 서로 다른 source와 서로 다른 target을 가진 route가 같은 cell component로 합쳐지면 topology를 추측하지 않고 실패합니다.
+- 동일 endpoint의 parallel forward edge는 하나의 선으로 축약하지 않고 renderer에서 거부합니다. Feedback/outer route로 분리된 edge는 기존처럼 별도 route와 legend를 유지합니다.
+- Unicode canvas는 N/E/S/W 연결 방향에서 corner·tee·junction을 합성합니다. `┼`는 실제 네 방향 연결일 때만 사용합니다.
+
+## Viewport
+
+- Standalone 기본은 240×200 cells, hard cap은 512×512 cells입니다.
+- `-width`, `-height`로 성공 출력의 cell bounds를 제한합니다.
+- `-fit`은 Flow의 요청 방향이 bounds를 넘을 때 반대 방향을 한 번 시도합니다. 두 방향이 모두 실패하면 clipping하거나 soft-wrap 가능한 출력을 내지 않고 오류를 반환합니다.
+- Codex plugin wrapper는 120×200과 `-fit`을 기본 사용합니다.
 
 ## Subgraphs
 

@@ -18,8 +18,8 @@ func TestAdversarialBranchingLRAndTD(t *testing.T) {
 		maxWidth  int
 		maxHeight int
 	}{
-		{name: "LR", header: "flowchart LR", arrow: "▶", junction: "┼", maxWidth: 100, maxHeight: 20},
-		{name: "TD", header: "flowchart TD", arrow: "▼", junction: "┼", maxWidth: 60, maxHeight: 20},
+		{name: "LR", header: "flowchart LR", arrow: "▶", junction: "┴", maxWidth: 100, maxHeight: 20},
+		{name: "TD", header: "flowchart TD", arrow: "▼", junction: "┤", maxWidth: 60, maxHeight: 20},
 	}
 
 	for _, tt := range tests {

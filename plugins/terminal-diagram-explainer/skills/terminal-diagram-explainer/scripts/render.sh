@@ -17,8 +17,8 @@ if [[ ! -x "${render_binary}" ]]; then
 fi
 
 case "${1:-}" in
-  "") exec "${render_binary}" ;;
-  --ascii|-ascii) exec "${render_binary}" -ascii ;;
+  "") exec "${render_binary}" -width 120 -fit ;;
+  --ascii|-ascii) exec "${render_binary}" -ascii -width 120 -fit ;;
   *)
     printf '지원하지 않는 renderer 인자: %q\n' "$1" >&2
     exit 2

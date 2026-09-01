@@ -98,7 +98,8 @@ printf '%s\n' "$diagram_source" | scripts/render.sh
 
 - 성공한 renderer 출력을 `text` code fence에 넣는다.
 - Renderer 성공 stdout은 그대로 사용하고 line·glyph·legend를 수동 편집하지 않는다. Session 내부에는 source, exit status, stderr, output dimensions을 검증 evidence로 유지한다.
+- Plugin renderer는 120-cell viewport와 Flow auto-fit을 사용한다. 요청 방향이 120 cells를 넘으면 반대 방향을 시도하며, 성공 출력의 모든 행은 120 cells 이하여야 한다.
 - Mermaid source는 사용자가 재사용을 요청했을 때만 함께 보여준다.
-- 실패하면 오류가 가리키는 문법·limit을 줄여 한 번만 재시도한다.
+- 두 방향 모두 viewport를 넘거나 route가 모호하면 label·node 수를 줄이거나 핵심 이야기를 두 도식으로 나눠 한 번만 재시도한다.
 - 두 번째 실패 시 작은 수동 Unicode 도식으로 fallback하고 실패를 한 문장으로 밝힌다.
 - renderer는 프로젝트 파일을 만들거나 자동 다운로드·업데이트하지 않는다.

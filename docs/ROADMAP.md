@@ -123,6 +123,16 @@
 - Choice 이름·다중 outbound·guard만으로 decision point를 추론하지 않으며 fixed-18 corpus에 positive explicit choice와 negative identifier-only case를 고정합니다.
 - Guard의 의미적 상호배타성·우선순위·default·완전성, fork/join/history/composite는 별도 확장으로 남깁니다.
 
+## 15. Topology-safe Flow와 Viewport Auto-fit — 완료 (0.16.0)
+
+- 인접 rank node order에 source-order stable median sweep을 적용해 풀 수 있는 crossing을 먼저 줄입니다.
+- Rank gap을 forward edge 수에 맞춰 확장하고 edge별 lane을 예약합니다.
+- Forward route cell component가 여러 source와 여러 target을 동시에 연결하면 false reachability 대신 fail-closed 처리합니다.
+- 동일 endpoint의 parallel forward edge는 silent collapse를 거부하고 feedback/outer route로 분리된 edge는 기존 별도 route를 유지합니다.
+- Canvas는 N/E/S/W 연결 mask로 corner·tee·junction을 합성해 elbow와 실제 교차를 구분합니다.
+- CLI `-width`, `-height`, `-fit`을 추가하고 plugin wrapper는 120×200 viewport에서 반대 방향 auto-fit을 사용합니다.
+- Journey 218-cell LR fixture, crossed adjacency, parallel label, directional elbow를 회귀 테스트로 고정합니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

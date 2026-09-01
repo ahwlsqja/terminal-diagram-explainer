@@ -20,7 +20,7 @@ func TestSequenceTwoParticipantGolden(t *testing.T) {
 		"│  A  │   │  B  │\n" +
 		"└─────┘   └─────┘\n" +
 		"   ┊  call   ┊\n" +
-		"   ┼─────────▶"
+		"   └─────────▶"
 	if got != want {
 		t.Fatalf("two-party request output drifted:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
@@ -37,7 +37,7 @@ func TestSequenceReverseReturnGolden(t *testing.T) {
 		"│  A  │   │  B  │\n" +
 		"└─────┘   └─────┘\n" +
 		"   ┊  done   ┊\n" +
-		"   ◀┄┄┄┄┄┄┄┄┄┼"
+		"   ◀┄┄┄┄┄┄┄┄┄┘"
 	if got != want {
 		t.Fatalf("two-party return output drifted:\n--- got ---\n%s\n--- want ---\n%s", got, want)
 	}
@@ -100,7 +100,8 @@ func TestSequenceFanoutLongHopJunctionAndLabels(t *testing.T) {
 		}
 	}
 	longHopArrowY := sequenceArrowRow(t, grid, "fan-out-to-queue")
-	if strings.Count(strings.Join(grid.rows[longHopArrowY], ""), "┼") < 2 {
+	longHopRow := strings.Join(grid.rows[longHopArrowY], "")
+	if strings.Count(longHopRow, "┼")+strings.Count(longHopRow, "┴") < 2 {
 		t.Fatalf("long-hop route must retain intermediate lifeline junctions:\n%s", output)
 	}
 }

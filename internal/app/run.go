@@ -17,19 +17,23 @@ import (
 )
 
 const (
-	Version       = "0.15.0"
+	Version       = "0.16.0"
 	MaxInputBytes = 256 * 1024
 )
 
 func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	flags := flag.NewFlagSet("term-diagram", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	defaultOptions := render.DefaultOptions()
 	ascii := flags.Bool("ascii", false, "ASCII 테두리와 연결선 사용; UTF-8 label은 보존")
 	filePath := flags.String("f", "-", "입력 파일 경로 또는 stdin용 -")
+	width := flags.Int("width", defaultOptions.MaxWidth, "출력 viewport 폭")
+	height := flags.Int("height", defaultOptions.MaxHeight, "출력 viewport 높이")
+	fit := flags.Bool("fit", false, "Flow가 viewport를 넘으면 방향을 자동 전환")
 	version := flags.Bool("version", false, "버전 출력")
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
-			fmt.Fprintln(stderr, "사용법: term-diagram [-ascii] [-f path|-] [-version]")
+			fmt.Fprintln(stderr, "사용법: term-diagram [-ascii] [-fit] [-width cells] [-height cells] [-f path|-] [-version]")
 		} else {
 			fmt.Fprintln(stderr, "잘못된 CLI 옵션")
 		}
@@ -37,6 +41,14 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if flags.NArg() != 0 {
 		fmt.Fprintln(stderr, "위치 인자는 허용하지 않음")
+		return 2
+	}
+	if *width <= 0 || *width > 512 {
+		fmt.Fprintln(stderr, "viewport 폭은 1..512여야 함")
+		return 2
+	}
+	if *height <= 0 || *height > 512 {
+		fmt.Fprintln(stderr, "viewport 높이는 1..512여야 함")
 		return 2
 	}
 	if *version {
@@ -81,6 +93,9 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	options := render.DefaultOptions()
 	options.ASCII = *ascii
+	options.MaxWidth = *width
+	options.MaxHeight = *height
+	options.AutoFit = *fit
 	var output string
 	if isStateSource(string(source)) {
 		diagram, parseErr := state.Parse(string(source), state.DefaultLimits())

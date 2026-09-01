@@ -32,7 +32,7 @@ func TestSequenceActivationBarsAndEndpoints(t *testing.T) {
 	if grid.at(b.center()+1, innerY) != "▶" {
 		t.Fatalf("nested activation endpoint missing at (%d,%d):\n%s", b.center()+1, innerY, output)
 	}
-	if grid.at(b.center(), outerY) != "┼" && grid.at(b.center(), outerY) != "┊" {
+	if grid.at(b.center(), outerY) != "┘" {
 		t.Fatalf("outer activation did not return to base bar:\n%s", output)
 	}
 	if !strings.Contains(output, "│") {

@@ -1,6 +1,7 @@
 package render
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -12,6 +13,7 @@ type Options struct {
 	ASCII     bool
 	MaxWidth  int
 	MaxHeight int
+	AutoFit   bool
 }
 
 func DefaultOptions() Options {
@@ -23,6 +25,25 @@ type placement struct {
 }
 
 func Flow(graph *flow.Graph, options Options) (string, error) {
+	output, err := flowInRequestedDirection(graph, options)
+	if err == nil || !options.AutoFit || !errors.Is(err, ErrOutputBounds) || graph == nil {
+		return output, err
+	}
+	alternate := *graph
+	if alternate.Direction == flow.LeftToRight {
+		alternate.Direction = flow.TopToBottom
+	} else {
+		alternate.Direction = flow.LeftToRight
+	}
+	options.AutoFit = false
+	alternateOutput, alternateErr := flowInRequestedDirection(&alternate, options)
+	if alternateErr == nil {
+		return alternateOutput, nil
+	}
+	return "", fmt.Errorf("%w: 요청 방향=%v; 대체 방향=%v", ErrOutputBounds, err, alternateErr)
+}
+
+func flowInRequestedDirection(graph *flow.Graph, options Options) (string, error) {
 	if options.MaxWidth <= 0 || options.MaxHeight <= 0 {
 		return "", fmt.Errorf("%w: limits must be positive", ErrOutputBounds)
 	}
@@ -80,16 +101,18 @@ func place(graph *flow.Graph, ranks []int, maxRank int, feedback []bool, options
 		widths[index] = max(7, width+4)
 		groups[ranks[index]] = append(groups[ranks[index]], index)
 	}
+	minimizeForwardCrossings(graph, groups, ranks, feedback)
 	placements := make([]placement, len(graph.Nodes))
 	if graph.Direction == flow.LeftToRight {
 		return placeLR(graph, groups, widths, placements, ranks, feedback, options)
 	}
-	return placeTD(graph, groups, widths, placements, options)
+	return placeTD(graph, groups, widths, placements, ranks, feedback, options)
 }
 
 func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []placement, ranks []int, feedback []bool, options Options) ([]placement, error) {
 	columnWidths := make([]int, len(groups))
 	columnGaps := make([]int, len(groups))
+	forwardCounts := forwardEdgeCountsByRank(graph, ranks, feedback)
 	maxCount := 0
 	for rank, group := range groups {
 		if len(group) > maxCount {
@@ -98,7 +121,7 @@ func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []place
 		for _, node := range group {
 			columnWidths[rank] = max(columnWidths[rank], widths[node])
 		}
-		columnGaps[rank] = 10
+		columnGaps[rank] = max(10, forwardCounts[rank]*2+4)
 	}
 	for edgeIndex, edge := range graph.Edges {
 		if feedback[edgeIndex] {
@@ -125,8 +148,10 @@ func placeLR(graph *flow.Graph, groups [][]int, widths []int, placements []place
 	return placements, nil
 }
 
-func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []placement, options Options) ([]placement, error) {
+func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []placement, ranks []int, feedback []bool, options Options) ([]placement, error) {
 	rowWidths := make([]int, len(groups))
+	rowGaps := make([]int, len(groups))
+	forwardCounts := forwardEdgeCountsByRank(graph, ranks, feedback)
 	maxRowWidth := 0
 	for rank, group := range groups {
 		for index, node := range group {
@@ -136,122 +161,85 @@ func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []place
 			rowWidths[rank] += widths[node]
 		}
 		maxRowWidth = max(maxRowWidth, rowWidths[rank])
+		rowGaps[rank] = max(5, forwardCounts[rank]+3)
 	}
 	if maxRowWidth > options.MaxWidth {
 		return nil, fmt.Errorf("%w: 출력 폭 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, maxRowWidth, options.MaxWidth)
 	}
+	y := 0
 	for rank, group := range groups {
-		x := (maxRowWidth - rowWidths[rank]) / 2
+		x := centeredTDRowLeft(graph, placements, ranks, feedback, rank, rowWidths[rank], maxRowWidth)
 		for _, node := range group {
-			placements[node] = placement{x: x, y: rank * 8, width: widths[node], height: 3}
+			placements[node] = placement{x: x, y: y, width: widths[node], height: 3}
 			x += widths[node] + 6
 		}
+		if rank+1 < len(groups) {
+			y += 3 + rowGaps[rank]
+		}
 	}
-	neededHeight := len(groups)*8 - 5
+	neededHeight := y + 3
 	if neededHeight > options.MaxHeight {
 		return nil, fmt.Errorf("%w: 출력 높이 제한 초과: 필요 %d, 제한 %d", ErrOutputBounds, neededHeight, options.MaxHeight)
 	}
 	return placements, nil
 }
 
-func drawForwardEdges(canvas *canvas, graph *flow.Graph, placements []placement, ranks []int, feedback []bool) error {
-	type edgeLabel struct {
-		x, y int
-		text string
+func centeredTDRowLeft(graph *flow.Graph, placements []placement, ranks []int, outer []bool, rank, rowWidth, maxRowWidth int) int {
+	centered := (maxRowWidth - rowWidth) / 2
+	if rank == 0 {
+		return centered
 	}
-	labels := make([]edgeLabel, 0, len(graph.Edges))
-	rankRight := make([]int, 0)
-	if graph.Direction == flow.LeftToRight {
-		maxRank := 0
-		for _, rank := range ranks {
-			maxRank = max(maxRank, rank)
-		}
-		rankRight = make([]int, maxRank+1)
-		for nodeIndex, current := range placements {
-			rankRight[ranks[nodeIndex]] = max(rankRight[ranks[nodeIndex]], current.x+current.width)
-		}
-	}
+	centerSum := 0
+	centerCount := 0
 	for edgeIndex, edge := range graph.Edges {
-		if feedback[edgeIndex] {
+		if outer[edgeIndex] || ranks[edge.From] != rank-1 || ranks[edge.To] != rank {
 			continue
 		}
 		from := placements[edge.From]
-		to := placements[edge.To]
-		if graph.Direction == flow.LeftToRight {
-			startX, startY := from.x+from.width, from.y+1
-			endX, endY := to.x-1, to.y+1
-			if endX <= startX+2 {
-				return fmt.Errorf("edge routing 공간 부족")
-			}
-			if startY == endY {
-				if err := canvas.horizontal(startX, endX, startY, edge.Dashed); err != nil {
+		centerSum += from.x + from.width/2
+		centerCount++
+	}
+	if centerCount == 0 {
+		return centered
+	}
+	desired := centerSum/centerCount - rowWidth/2
+	if desired < 0 {
+		return 0
+	}
+	if maximum := maxRowWidth - rowWidth; desired > maximum {
+		return maximum
+	}
+	return desired
+}
+
+func drawForwardEdges(canvas *canvas, graph *flow.Graph, placements []placement, ranks []int, feedback []bool) error {
+	routes, err := planForwardRoutes(graph, placements, ranks, feedback)
+	if err != nil {
+		return err
+	}
+	if err := validateForwardRouteTopology(graph, routes); err != nil {
+		return err
+	}
+	for _, route := range routes {
+		for _, segment := range route.segments {
+			if segment.y1 == segment.y2 {
+				if err := canvas.horizontal(segment.x1, segment.x2, segment.y1, segment.dashed); err != nil {
 					return err
 				}
-				if err := canvas.arrow(endX, endY, right); err != nil {
-					return err
-				}
-				if edge.Label != "" {
-					labels = append(labels, edgeLabel{x: startX + 2, y: max(0, endY-1), text: edge.Label})
-				}
-				continue
-			}
-			laneX := rankRight[ranks[edge.From]] + 2
-			if laneX >= endX {
-				return fmt.Errorf("%w: LR forward rail has no gap", ErrLayout)
-			}
-			if err := canvas.horizontal(startX, laneX, startY, edge.Dashed); err != nil {
+			} else if err := canvas.vertical(segment.x1, segment.y1, segment.y2, segment.dashed); err != nil {
 				return err
-			}
-			if err := canvas.vertical(laneX, startY, endY, edge.Dashed); err != nil {
-				return err
-			}
-			if err := canvas.horizontal(laneX, endX, endY, edge.Dashed); err != nil {
-				return err
-			}
-			if err := canvas.arrow(endX, endY, right); err != nil {
-				return err
-			}
-			if edge.Label != "" {
-				labels = append(labels, edgeLabel{x: laneX + 2, y: max(0, endY-1), text: edge.Label})
-			}
-		} else {
-			startX, startY := from.x+from.width/2, from.y+from.height
-			endX, endY := to.x+to.width/2, to.y-1
-			if endY <= startY+2 {
-				return fmt.Errorf("edge routing 공간 부족")
-			}
-			if startX == endX {
-				if err := canvas.vertical(startX, startY, endY, edge.Dashed); err != nil {
-					return err
-				}
-				if err := canvas.arrow(endX, endY, down); err != nil {
-					return err
-				}
-				if edge.Label != "" {
-					labels = append(labels, edgeLabel{x: endX + 2, y: startY + 1, text: edge.Label})
-				}
-				continue
-			}
-			laneY := startY + 2
-			if err := canvas.vertical(startX, startY, laneY, edge.Dashed); err != nil {
-				return err
-			}
-			if err := canvas.horizontal(startX, endX, laneY, edge.Dashed); err != nil {
-				return err
-			}
-			if err := canvas.vertical(endX, laneY, endY, edge.Dashed); err != nil {
-				return err
-			}
-			if err := canvas.arrow(endX, endY, down); err != nil {
-				return err
-			}
-			if edge.Label != "" {
-				labels = append(labels, edgeLabel{x: endX + 1, y: max(0, laneY-1), text: edge.Label})
 			}
 		}
+		if err := canvas.arrow(route.arrowX, route.arrowY, route.direction); err != nil {
+			return err
+		}
 	}
-	for _, label := range labels {
-		if err := canvas.putText(label.x, label.y, label.text); err != nil {
+	for _, route := range routes {
+		label := graph.Edges[route.edgeIndex].Label
+		if label == "" {
+			continue
+		}
+		if err := canvas.putText(route.labelX, route.labelY, label); err != nil {
 			return err
 		}
 	}

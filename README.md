@@ -32,6 +32,8 @@ Validate -.->|no| Reject[Reject + observe]
 - cycle과 self-loop는 SCC 분석 후 외곽 feedback route로 렌더링하며 label은 `feedback:` legend에 표시합니다.
 - 중간 rank를 건너뛰는 edge도 node 관통을 피하도록 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
 - cross-subgraph edge는 frame을 관통하지 않는 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
+- 인접 rank는 bounded median sweep으로 crossing을 줄이고 edge별 lane을 예약합니다. 서로 다른 source와 target의 route가 같은 cell component로 합쳐지면 모호한 그림 대신 오류를 반환합니다.
+- Canvas는 N/E/S/W 연결 방향으로 corner·tee·junction glyph를 합성하며 동일 endpoint의 parallel forward edge는 조용히 축약하지 않고 거부합니다.
 
 ```text
 sequenceDiagram
@@ -122,6 +124,14 @@ GOTOOLCHAIN=local GOPROXY=off go test -race ./...
 GOTOOLCHAIN=local GOPROXY=off go vet ./...
 GOTOOLCHAIN=local GOPROXY=off go list -m all
 ```
+
+Standalone CLI 기본 viewport는 240×200입니다. 좁은 출력 surface에서는 폭과 자동 방향 전환을 명시할 수 있습니다.
+
+```bash
+printf '%s\n' "$diagram_source" | term-diagram -width 120 -height 200 -fit
+```
+
+Codex plugin wrapper는 코드 블록 soft-wrap을 피하기 위해 120×200과 Flow auto-fit을 기본 적용합니다.
 
 `evals/prompts.json`에는 agent에게 전달할 backend/core 설명 18개가 있고, `evals/oracles.json`에는 평가할 때만 읽는 기준이 분리되어 있습니다. Reference diagram은 실제 parser/renderer로 재생하며 strong notation evidence gate, text-only 선택, SSoT·ordering·security·redaction case를 검증합니다.
 

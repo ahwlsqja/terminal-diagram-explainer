@@ -9,7 +9,7 @@
 - Sequence Diagram은 최대 16 participants, 96 messages이며 participant와 message label은 최대 96 cells입니다.
 - Structured Sequence fragment는 최대 32개, 중첩 깊이 8이며 전체 timeline은 256 steps입니다.
 - Explicit activation은 최대 96개, participant별 LIFO depth 8입니다.
-- 기본 canvas는 240×200 cells, hard cap은 512×512 cells이며 clipping 대신 오류를 반환합니다.
+- Standalone 기본 canvas는 240×200 cells, plugin wrapper는 120×200 cells이며 hard cap은 512×512 cells입니다. `-fit` Flow는 요청 방향이 bounds를 넘을 때 반대 방향을 한 번 시도하고 두 방향 모두 실패하면 clipping 대신 오류를 반환합니다.
 - SCC·feedback 분석은 32,768 고정 work-step budget 안에서 종료합니다.
 - 직접 구성된 `Graph`도 renderer 진입점에서 parser의 custom `Limits`와 무관한 hard limit 48 nodes, 96 edges, 32 subgraphs, depth 8, endpoint, ID, label, parent forest, membership을 다시 검증합니다.
 - 직접 구성된 Sequence `Diagram`도 renderer 진입점에서 participant/message count, ID·display label uniqueness, endpoint, message kind, label을 다시 검증합니다.
@@ -23,6 +23,8 @@
 - Cycle feedback은 Tarjan SCC membership 안에서 source edge order대로 greedy 분류합니다. Feedback set은 inclusion-minimal이지만 minimum-cardinality라고 주장하지 않습니다.
 - Flat feedback route는 LR 아래 gutter와 TD 오른쪽 gutter를 사용합니다. Scoped feedback route는 frame-safe 예약 corridor와 전역 하단 perimeter를 사용하며 label은 최대 96행의 bounded legend로 분리합니다.
 - 중간 rank를 건너뛰는 forward edge도 같은 outer-route planner를 사용해 intermediate node 관통을 차단합니다.
+- 인접-rank forward edge는 bounded median sweep과 edge별 lane을 사용합니다. Route cell component가 서로 다른 source와 target을 함께 연결하면 모호한 성공 출력을 거부하며, 동일 endpoint의 parallel forward edge도 silent collapse 대신 실패합니다.
+- Canvas line cell은 N/E/S/W 연결 방향을 보존하고 최종 Unicode/ASCII corner·tee·junction glyph를 결정적으로 합성합니다.
 - Subgraph는 `Node.Scope` 단일 membership과 source-order parent forest로 표현하며 빈 subtree와 node/subgraph ID 충돌을 거부합니다.
 - Scoped layout은 LR y-band, TD x-band로 sibling frame을 분리하고 cross-scope route는 예약 corridor와 검증된 frame portal만 사용합니다.
 - Feedback은 `feedback:`, label이 있는 skip-rank forward edge는 `routed:` legend로 분리하며 두 legend 모두 output bounds에 포함합니다.

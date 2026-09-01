@@ -112,9 +112,10 @@ func placeScopedLR(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTre
 	}
 	columnWidths := make([]int, plan.maxRank+1)
 	columnGaps := make([]int, plan.maxRank+1)
+	forwardCounts := forwardEdgeCountsByRank(graph, plan.ranks, outer)
 	for nodeIndex, rank := range plan.ranks {
 		columnWidths[rank] = max(columnWidths[rank], widths[nodeIndex])
-		columnGaps[rank] = 10
+		columnGaps[rank] = max(10, forwardCounts[rank]*2+4)
 	}
 	for edgeIndex, edge := range graph.Edges {
 		if outer[edgeIndex] {
@@ -217,8 +218,14 @@ func placeScopedTD(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTre
 		frames:     make([]scopeRect, len(graph.Subgraphs)),
 	}
 	yBase := tree.maxDepth * scopeContentTopLR
+	forwardCounts := forwardEdgeCountsByRank(graph, plan.ranks, outer)
+	rankY := make([]int, plan.maxRank+1)
+	for rank := 1; rank <= plan.maxRank; rank++ {
+		rowGap := max(5, forwardCounts[rank-1]+3)
+		rankY[rank] = rankY[rank-1] + 3 + rowGap
+	}
 	for nodeIndex, rank := range plan.ranks {
-		layout.placements[nodeIndex] = placement{y: yBase + rank*8, width: widths[nodeIndex], height: 3}
+		layout.placements[nodeIndex] = placement{y: yBase + rankY[rank], width: widths[nodeIndex], height: 3}
 	}
 
 	slotWidths := make([][]int, len(tree.direct))

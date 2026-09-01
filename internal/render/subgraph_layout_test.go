@@ -141,7 +141,7 @@ A -->|return| Root`
 	if connectorY < 0 {
 		t.Fatalf("root ingress connector is outside output: node=%+v", rootNode)
 	}
-	if current := grid.cells[connectorY][connectorX]; current != "│" && current != "┊" && current != "┼" {
+	if current := grid.cells[connectorY][connectorX]; current != "│" && current != "┊" && current != "┼" && current != "┌" {
 		t.Fatalf("root ingress connector missing at (%d,%d), cell=%q:\n%s", connectorX, connectorY, current, output)
 	}
 	if current := grid.cells[arrowY][connectorX]; current != "▼" {

@@ -10,7 +10,18 @@ import (
 type cell struct {
 	text         string
 	continuation bool
+	connections  lineConnections
+	lineDashed   bool
 }
+
+type lineConnections uint8
+
+const (
+	connectNorth lineConnections = 1 << iota
+	connectEast
+	connectSouth
+	connectWest
+)
 
 type canvas struct {
 	cells         []cell
@@ -71,7 +82,17 @@ func (c *canvas) horizontal(x1, x2, y int, dashed bool) error {
 		x1, x2 = x2, x1
 	}
 	for x := x1; x <= x2; x++ {
-		if err := c.line(x, y, true, dashed); err != nil {
+		connections := lineConnections(0)
+		if x > x1 {
+			connections |= connectWest
+		}
+		if x < x2 {
+			connections |= connectEast
+		}
+		if connections == 0 {
+			connections = connectEast | connectWest
+		}
+		if err := c.connectLine(x, y, connections, dashed); err != nil {
 			return err
 		}
 	}
@@ -83,45 +104,56 @@ func (c *canvas) vertical(x, y1, y2 int, dashed bool) error {
 		y1, y2 = y2, y1
 	}
 	for y := y1; y <= y2; y++ {
-		if err := c.line(x, y, false, dashed); err != nil {
+		connections := lineConnections(0)
+		if y > y1 {
+			connections |= connectNorth
+		}
+		if y < y2 {
+			connections |= connectSouth
+		}
+		if connections == 0 {
+			connections = connectNorth | connectSouth
+		}
+		if err := c.connectLine(x, y, connections, dashed); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func (c *canvas) line(x, y int, horizontal, dashed bool) error {
+func (c *canvas) connectLine(x, y int, connections lineConnections, dashed bool) error {
 	if x < 0 || y < 0 || x >= c.width || y >= c.height {
 		return fmt.Errorf("%w: line point (%d,%d)", ErrOutputBounds, x, y)
 	}
-	want := c.glyph(horizontal, dashed)
 	cellIndex := c.index(x, y)
-	existing := c.cells[cellIndex].text
-	if existing == "" || existing == " " {
-		c.cells[cellIndex] = cell{text: want}
-	} else if existing != want && isLine(existing) {
-		existingKind := lineKind(existing)
-		wantKind := lineKind(want)
-		switch {
-		case existingKind == wantKind && existingKind == 1:
-			c.cells[cellIndex] = cell{text: c.glyph(true, false)}
-		case existingKind == wantKind && existingKind == 2:
-			c.cells[cellIndex] = cell{text: c.glyph(false, false)}
-		case existingKind == 3:
-			// Keep an existing junction.
-		case c.ascii:
-			c.cells[cellIndex] = cell{text: "+"}
-		default:
-			c.cells[cellIndex] = cell{text: "┼"}
+	existing := c.cells[cellIndex]
+	if existing.connections == 0 {
+		parsedConnections, parsedDashed := glyphConnections(existing.text)
+		existing.connections = parsedConnections
+		existing.lineDashed = parsedDashed
+	}
+	if existing.text == "" || existing.text == " " || existing.connections != 0 {
+		lineDashed := dashed
+		if existing.connections != 0 {
+			lineDashed = existing.lineDashed && dashed
+		}
+		connections |= existing.connections
+		c.cells[cellIndex] = cell{
+			text:        c.connectionGlyph(connections, lineDashed),
+			connections: connections,
+			lineDashed:  lineDashed,
 		}
 	}
 	c.mark(x, y)
 	return nil
 }
 
-func (c *canvas) glyph(horizontal, dashed bool) string {
+func (c *canvas) connectionGlyph(connections lineConnections, dashed bool) string {
 	if c.ascii {
-		if horizontal {
+		if connections&(connectNorth|connectSouth) != 0 && connections&(connectEast|connectWest) != 0 {
+			return "+"
+		}
+		if connections&(connectEast|connectWest) != 0 {
 			if dashed {
 				return "."
 			}
@@ -132,16 +164,73 @@ func (c *canvas) glyph(horizontal, dashed bool) string {
 		}
 		return "|"
 	}
-	if horizontal {
+	if connections == connectEast || connections == connectWest || connections == connectEast|connectWest {
 		if dashed {
 			return "┄"
 		}
 		return "─"
 	}
-	if dashed {
-		return "┊"
+	if connections == connectNorth || connections == connectSouth || connections == connectNorth|connectSouth {
+		if dashed {
+			return "┊"
+		}
+		return "│"
 	}
-	return "│"
+	switch connections {
+	case connectEast | connectSouth:
+		return "┌"
+	case connectSouth | connectWest:
+		return "┐"
+	case connectNorth | connectEast:
+		return "└"
+	case connectNorth | connectWest:
+		return "┘"
+	case connectEast | connectSouth | connectWest:
+		return "┬"
+	case connectNorth | connectSouth | connectWest:
+		return "┤"
+	case connectNorth | connectEast | connectWest:
+		return "┴"
+	case connectNorth | connectEast | connectSouth:
+		return "├"
+	case connectNorth | connectEast | connectSouth | connectWest:
+		return "┼"
+	default:
+		return ""
+	}
+}
+
+func glyphConnections(value string) (lineConnections, bool) {
+	switch value {
+	case "-", "─":
+		return connectEast | connectWest, false
+	case ".", "┄":
+		return connectEast | connectWest, true
+	case "|", "│":
+		return connectNorth | connectSouth, false
+	case ":", "┊":
+		return connectNorth | connectSouth, true
+	case "┌":
+		return connectEast | connectSouth, false
+	case "┐":
+		return connectSouth | connectWest, false
+	case "└":
+		return connectNorth | connectEast, false
+	case "┘":
+		return connectNorth | connectWest, false
+	case "┬":
+		return connectEast | connectSouth | connectWest, false
+	case "┤":
+		return connectNorth | connectSouth | connectWest, false
+	case "┴":
+		return connectNorth | connectEast | connectWest, false
+	case "├":
+		return connectNorth | connectEast | connectSouth, false
+	case "+", "┼":
+		return connectNorth | connectEast | connectSouth | connectWest, false
+	default:
+		return 0, false
+	}
 }
 
 func (c *canvas) arrow(x, y int, direction flowDirection) error {
@@ -204,21 +293,8 @@ func (c *canvas) at(x, y int) cell {
 }
 
 func isLine(value string) bool {
-	return strings.Contains("-|.:─│┄┊┼+", value)
-}
-
-// lineKind returns 1 for horizontal, 2 for vertical and 3 for a junction.
-func lineKind(value string) int {
-	switch value {
-	case "-", ".", "─", "┄":
-		return 1
-	case "|", ":", "│", "┊":
-		return 2
-	case "+", "┼":
-		return 3
-	default:
-		return 0
-	}
+	connections, _ := glyphConnections(value)
+	return connections != 0
 }
 
 type flowDirection uint8
