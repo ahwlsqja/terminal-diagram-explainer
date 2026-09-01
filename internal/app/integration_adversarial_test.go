@@ -195,7 +195,7 @@ func TestRunDoesNotEchoHostileUnknownFlag(t *testing.T) {
 
 func TestRunHelpDoesNotClaimLabelsAreASCIIOnly(t *testing.T) {
 	got := invoke([]string{"-h"}, strings.NewReader(integrationSource))
-	if got.code != 2 || got.stdout != "" || got.stderr != "사용법: term-diagram [-ascii] [-fit] [-format text|svg] [-width cells] [-height cells] [-f path|-] [-version]\n" {
+	if got.code != 2 || got.stdout != "" || got.stderr != "사용법: term-diagram [-ascii] [-fit] [-format text|svg|html] [-width cells] [-height cells] [-f path|-] [-version]\n" {
 		t.Fatalf("code=%d stdout=%q stderr=%q", got.code, got.stdout, got.stderr)
 	}
 	if strings.Contains(got.stderr, "ASCII 문자만 사용") {

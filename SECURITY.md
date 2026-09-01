@@ -17,7 +17,7 @@
 - invalid/unsupported syntax는 line/column이 있는 오류로 fail-closed 처리합니다.
 - 입력 검증·파싱·렌더 실패는 stdout에 아무것도 기록하지 않습니다. OS·pipe·writer가 실제 쓰기 도중 실패한 경우에는 이미 전달된 byte를 회수할 수 없으므로 exit code 1과 stderr 진단으로 알립니다.
 - label의 terminal control·bidi·format 문자는 렌더 전에 거부합니다.
-- `term-diagram` binary에는 네트워크, HTTP server, shell, subprocess, environment-driven behavior, runtime file write가 없습니다. Plugin의 선택적 `render-image.sh`만 임시 SVG/PNG를 만들고 설치된 `sips`·`rsvg-convert`·ImageMagick 중 하나를 호출하며 다운로드하지 않습니다.
+- `term-diagram` binary에는 네트워크, HTTP server, shell, subprocess, environment-driven behavior, runtime file write가 없습니다. Plugin의 선택적 `render-image.sh`/`render-artifacts.sh`만 임시 SVG/PNG/HTML을 만들고 설치된 `sips`·`rsvg-convert`·ImageMagick 중 하나를 호출하며 다운로드하지 않습니다.
 - `CGO_ENABLED=0`, `GOPROXY=off`에서 build/test할 수 있으며 `go list -m all`은 자기 모듈 하나만 출력해야 합니다.
 - map은 lookup에만 사용하고 배치·출력 순서는 source-order slice로 결정합니다.
 - Cycle feedback은 Tarjan SCC membership 안에서 source edge order대로 greedy 분류합니다. Feedback set은 inclusion-minimal이지만 minimum-cardinality라고 주장하지 않습니다.
@@ -55,6 +55,7 @@
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.
 - Canvas는 하나의 bounded flat cell buffer를 사용하며 row별 또는 edge별 full-canvas clone을 만들지 않습니다.
 - SVG backend는 canonical terminal geometry의 line/arrow를 vector primitive로 바꾸고 text를 XML escape합니다. 최대 60,000 source cells에서 fail-closed하며 host code-fence wrapping이나 box-drawing font metrics에 의존하지 않습니다.
+- HTML backend는 같은 escaped SVG를 inline으로 포함하고 고정된 local pan·zoom·fit script만 실행합니다. 외부 script, fetch/XHR/WebSocket, CDN 또는 runtime data source가 없습니다.
 
 ## Upstream audit에서 확인한 제거 대상
 

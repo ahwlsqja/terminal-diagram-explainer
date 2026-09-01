@@ -141,6 +141,13 @@
 - Plugin은 120×200 auto-fit SVG를 로컬 PNG로 변환해 image attachment로 사용하고, image surface가 없을 때만 terminal text로 fallback합니다.
 - 두 번째 renderer 실패에서 수동 Unicode 그림을 생성하지 않아 검증되지 않은 geometry가 canonical output으로 섞이지 않게 합니다.
 
+## 17. Interactive HTML Viewer — 완료 (0.18.0)
+
+- CLI `-format html`이 검증된 SVG geometry를 self-contained viewer에 내장합니다.
+- Viewer는 keyboard-accessible zoom in/out, fit, 100% controls와 pointer pan·wheel zoom을 제공합니다.
+- ResizeObserver가 viewport 변화에 맞춰 fit 상태를 유지하며 외부 script·network·runtime data fetch를 사용하지 않습니다.
+- Plugin artifact script는 PNG와 HTML을 같은 source에서 생성해 inline preview와 interactive inspection 선택지를 함께 제공합니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

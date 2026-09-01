@@ -1,6 +1,6 @@
 interface:
   display_name: "Terminal Diagram Explainer"
-  short_description: "개발 흐름을 안전한 그래픽 도식으로 설명"
-  default_prompt: "Use $terminal-diagram-explainer to explain this software flow with a graphical diagram."
+  short_description: "개발 흐름을 그래픽과 interactive HTML로 설명"
+  default_prompt: "Use $terminal-diagram-explainer to explain this software flow with a graphical diagram and interactive HTML option."
 policy:
   allow_implicit_invocation: true

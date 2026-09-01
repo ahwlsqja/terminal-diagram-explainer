@@ -21,7 +21,7 @@ func TestRunRendersSVGArtifact(t *testing.T) {
 }
 
 func TestRunRejectsUnknownOutputFormat(t *testing.T) {
-	result := invoke([]string{"-format", "html"}, strings.NewReader("flowchart LR\nA --> B\n"))
+	result := invoke([]string{"-format", "pdf"}, strings.NewReader("flowchart LR\nA --> B\n"))
 	if result.code != 2 || result.stdout != "" || !strings.Contains(result.stderr, "출력 형식") {
 		t.Fatalf("unknown format result=%+v", result)
 	}

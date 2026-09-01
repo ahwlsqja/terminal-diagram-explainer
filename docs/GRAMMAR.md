@@ -1,4 +1,4 @@
-# 0.17 문법
+# 0.18 문법
 
 ## Header
 
@@ -54,6 +54,7 @@ B -.->|retry| A
 - `-fit`은 Flow의 요청 방향이 bounds를 넘을 때 반대 방향을 한 번 시도합니다. 두 방향이 모두 실패하면 clipping하거나 soft-wrap 가능한 출력을 내지 않고 오류를 반환합니다.
 - Codex plugin wrapper는 120×200과 `-fit`을 기본 사용합니다.
 - `-format svg`는 같은 bounded layout을 fixed viewBox의 vector line·arrow·XML-escaped text로 출력합니다. 문법과 topology 검증은 text backend와 동일합니다.
+- `-format html`은 SVG를 self-contained pan·zoom·fit viewer에 내장합니다. 외부 resource나 network call은 없으며 diagram semantics를 다시 계산하지 않습니다.
 
 ## Subgraphs
 

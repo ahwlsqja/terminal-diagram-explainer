@@ -96,7 +96,7 @@ Submission의 축약 형태:
 ```json
 {
   "schema": "eval-pack.batch.v1",
-  "subject_id": "terminal-diagram-explainer-0.17.0",
+  "subject_id": "terminal-diagram-explainer-0.18.0",
   "corpus_digest": "<64 lowercase hex>",
   "runs": [
     {
@@ -113,7 +113,7 @@ Review의 축약 형태:
 {
   "schema": "eval-pack.review.v1",
   "evaluator_id": "independent-evaluator-01",
-  "subject_id": "terminal-diagram-explainer-0.17.0",
+  "subject_id": "terminal-diagram-explainer-0.18.0",
   "corpus_digest": "<binding corpus_digest>",
   "submission_digest": "<binding submission_digest>",
   "reviews": [
