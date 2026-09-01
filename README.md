@@ -55,7 +55,26 @@ Worker ->> Worker: record metrics
 - Activation pair 사이에는 message가 있어야 하고 fragment 시작·`else`·`end` 경계를 넘을 수 없습니다.
 - `par label ... and label ... end`는 독립 branch를 source/display order로 보여줍니다. 이 세로 순서는 실제 동시 실행 순서나 happens-before를 뜻하지 않습니다.
 - `par`는 최소 두 개의 nonempty branch를 요구하며 activation은 각 branch 안에서 완결되어야 합니다.
-- `classDef`, `style`, `click`, HTML/Markdown label, Sequence note, ER diagram은 아직 명시적으로 거부합니다.
+
+```mermaid
+erDiagram
+Customer ||--o{ Order : places
+Customer[고객] {
+  uuid id PK
+  string email
+}
+Order[주문] {
+  uuid id PK
+  uuid customer_id FK
+}
+```
+
+- Entity block은 `ID { ... }` 또는 `ID[display label] { ... }`입니다.
+- Attribute는 `type name [PK] [FK]`이며 PK+FK 조합을 허용합니다.
+- Cardinality marker는 `0..1`, `1`, `0..N`, `1..N` 네 종류를 명시합니다.
+- Self·duplicate relationship과 disconnected entity를 지원합니다.
+- 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
+- `classDef`, `style`, `click`, HTML/Markdown label, Sequence/ER note와 advanced ER semantics는 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

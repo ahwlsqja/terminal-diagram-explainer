@@ -49,10 +49,13 @@
 - `BranchKind`를 AST에 보존해 parser와 direct renderer가 `alt→else`, `par→and`를 동일하게 검증합니다.
 - Activation은 각 branch 안에서 완결되어야 하며 `and` 경계를 넘지 못합니다.
 
-## 7. ER Diagram
+## 7. ER Diagram — 완료 (0.8.0)
 
-- 초기 상한: entities 32, relationships 64, attributes total 192, entity당 32.
-- cardinality, PK/FK, self-relation, disconnected component, CJK label을 먼저 검증합니다.
+- 독립 `internal/er` parser/model과 exact app dispatcher를 사용합니다.
+- entities 32, relationships 64, attributes total 192/entity당 32 hard limit을 parser와 renderer 양쪽에서 검증합니다.
+- Four cardinalities, PK/FK bit flags, aliases, forward refs, self·duplicate relation, disconnected component를 지원합니다.
+- Component-banded vertical tables, endpoint apron ports, source-order rails와 bounded relationship legend를 사용합니다.
+- Relationship attributes, inheritance, weak entity, inferred cardinality는 별도 확장 대상으로 남깁니다.
 
 ## 공통 완료 게이트
 

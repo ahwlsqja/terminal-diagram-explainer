@@ -9,13 +9,14 @@ import (
 	"os"
 	"strings"
 
+	"github.com/ahwlsqja/terminal-diagram-explainer/internal/er"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/render"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/sequence"
 )
 
 const (
-	Version       = "0.7.0"
+	Version       = "0.8.0"
 	MaxInputBytes = 256 * 1024
 )
 
@@ -87,6 +88,13 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return 2
 		}
 		output, err = render.Sequence(diagram, options)
+	} else if isERSource(string(source)) {
+		diagram, parseErr := er.Parse(string(source), er.DefaultLimits())
+		if parseErr != nil {
+			fmt.Fprintln(stderr, parseErr)
+			return 2
+		}
+		output, err = render.ER(diagram, options)
 	} else {
 		graph, parseErr := flow.Parse(string(source), flow.DefaultLimits())
 		if parseErr != nil {
@@ -108,6 +116,17 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+func isERSource(source string) bool {
+	for _, raw := range strings.Split(source, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "%%") {
+			continue
+		}
+		return line == "erDiagram"
+	}
+	return false
 }
 
 func isSequenceSource(source string) bool {

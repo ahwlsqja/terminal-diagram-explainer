@@ -38,6 +38,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 처리·데이터 파이프라인: `flowchart LR`
 - 분기·의사결정·장애 처리: `flowchart TD`
 - API request/response, 서비스 간 호출 순서, fan-out, self-call: `sequenceDiagram`
+- Entity ownership, table attributes, PK/FK, cardinality 관계: `erDiagram`
 - 정상 흐름은 `-->`, 실패·비동기·보조 흐름은 `-.->`를 사용한다.
 - decision은 `ID{label}`, data store/view는 `ID[(label)]`로 표시한다.
 - ownership, service, data, trust boundary가 설명의 핵심이면 `subgraph ID[label] ... end`로 묶는다. Node ID와 subgraph ID는 전체 graph에서 유일해야 한다.
@@ -51,8 +52,10 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - Activation pair 안에는 message를 넣고 fragment 경계를 넘기지 않는다. Activation을 실제 call stack의 증거처럼 해석하지 않는다.
 - 실제로 독립 실행 가능한 branch를 함께 보여줄 때만 `par label ... and label ... end`를 사용한다.
 - `par` branch의 source/display order를 실행 순서나 happens-before로 설명하지 않는다. 각 branch 내부 순서와 frame 전후 경계만 순서 의미를 가진다.
+- ER entity는 `ID[display label] { ... }`, attribute는 `type name [PK] [FK]`, relationship은 cardinality를 생략하지 않고 명시한다.
+- FK marker는 표시 metadata로만 사용한다. Source에서 참조 target·integrity가 확인되지 않았다면 relationship을 추론해 추가하지 않는다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
-- 현재 버전은 class/style/click, Sequence note, ER 문법을 지원하지 않는다.
+- 현재 버전은 class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
 
 문법이 필요하면 [references/grammar.md](references/grammar.md)를 읽는다. 설명 관점과 예시가 필요하면 [references/developer-lenses.md](references/developer-lenses.md)를 읽는다.
 

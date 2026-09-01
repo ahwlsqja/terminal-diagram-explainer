@@ -73,4 +73,18 @@ end
 
 `par` requires at least two nonempty branches. The renderer labels it `par (display order only)`: branch vertical/source order is presentation order, not simultaneous execution order or a happens-before relation. Activation pairs must close inside one branch.
 
-Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence notes, ER, `RL`, `BT`.
+```text
+erDiagram
+Customer ||--o{ Order : places
+Customer[고객] {
+  uuid id PK
+  string email
+}
+Order[주문] {
+  uuid customer_id FK
+}
+```
+
+ER limits: 32 entities, 64 relationships, 192 attributes total and 32 per entity. Entity IDs and display labels are unique. Attributes use `type name [PK] [FK]`; PK/FK are display metadata and do not infer references. Relationship endpoints use entity IDs and explicit Mermaid-style cardinality markers. Self, duplicate and disconnected relationships/entities are retained in source order.
+
+Unsupported syntax fails rather than falling back: class/style/click, HTML/Markdown labels, Sequence/ER notes, advanced ER inheritance/weak entity/inferred cardinality, `RL`, `BT`.

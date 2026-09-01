@@ -45,6 +45,8 @@ Participant가 실제로 처리 중인 구간이 source에서 확인되면 `acti
 
 독립 branch를 `par/and`로 묶을 때는 branch 내부 순서만 설명한다. Branch의 화면상 위아래 순서를 실제 실행 순서나 happens-before로 해석하지 않는다.
 
+Entity·table ownership과 cardinality가 핵심이면 ER Diagram을 사용한다. PK/FK marker와 relationship은 source에서 각각 확인하고, FK 이름만 보고 target 관계를 추론하지 않는다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

@@ -33,6 +33,11 @@
 - Activation bar는 호출 stack의 정합성을 증명하지 않습니다. 설명 대상 source에서 실제 active lifetime이 확인될 때만 시각화합니다.
 - `par/and` frame은 branch를 source/display order로만 배치합니다. Branch 사이의 세로 위치는 실제 동시 실행 순서나 happens-before 관계를 주장하지 않습니다.
 - `par` title에 `display order only`를 항상 표시하고 각 branch를 `and` separator로 구분합니다. Branch는 nonempty이며 activation state를 다음 branch로 넘길 수 없습니다.
+- ER Diagram은 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
+- ER parser는 forward relationship endpoint를 EOF에서 explicit entity block으로 resolve하며 public model에 placeholder를 남기지 않습니다.
+- ER renderer는 entity/attribute/relationship/cardinality/key bit를 독립 재검증하고 endpoint마다 source-order port와 rail을 사전 배정합니다.
+- PK/FK는 표시 metadata이며 FK target이나 referential integrity를 자동 추론하지 않습니다.
+- Self·duplicate relationship은 별도 ports/rails를 사용하고 label은 bounded `relationships:` legend에만 표시합니다.
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.
 - Canvas는 하나의 bounded flat cell buffer를 사용하며 row별 또는 edge별 full-canvas clone을 만들지 않습니다.
 

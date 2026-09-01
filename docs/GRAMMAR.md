@@ -1,4 +1,4 @@
-# 0.6 문법
+# 0.8 문법
 
 ## Header
 
@@ -146,10 +146,37 @@ end
 - Renderer는 frame title에 `par (display order only)`를 항상 표시합니다.
 - Activation pair는 하나의 `par` branch 안에서 완결되어야 하며 `and` 경계를 넘을 수 없습니다.
 
+## ER Diagrams
+
+```text
+erDiagram
+Customer ||--o{ Order : places orders
+Customer[고객] {
+  uuid id PK
+  string email
+}
+Order[주문] {
+  uuid id PK
+  uuid customer_id PK FK
+}
+Audit[감사] {}
+```
+
+- Header는 정확히 `erDiagram`입니다.
+- Entity는 `ID {` 또는 `ID[display label] {`로 열고 exact `}`로 닫습니다. Empty/disconnected entity도 허용합니다.
+- Attribute는 `type name`, `type name PK`, `type name FK`, `type name PK FK`를 지원합니다.
+- Attribute type/name은 ASCII ID이고 name은 entity 안에서 유일합니다. PK/FK는 표시 metadata이며 relationship이나 target을 자동 추론하지 않습니다.
+- Relationship은 `From <left-marker>--<right-marker> To : label` 형식입니다. Entity block보다 앞에 쓸 수 있지만 EOF까지 모든 endpoint block이 명시되어야 합니다.
+- Left marker: `o|`=0..1, `||`=1, `}o`=0..N, `}|`=1..N.
+- Right marker: `|o`=0..1, `||`=1, `o{`=0..N, `|{`=1..N.
+- 첫 `:` 뒤 나머지가 필수 relationship label입니다. Self·duplicate·reverse relationship을 source order로 보존합니다.
+- 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
+- Renderer는 component별 vertical entity tables, endpoint cardinality marker, source-order rails와 `relationships:` legend를 사용합니다.
+
 ## Rejected input
 
 - invalid UTF-8
 - NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
 - 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
-- Sequence note와 ER diagrams, Flow 방향 `RL`, `BT`
+- Sequence/ER note, ER relationship attributes·inheritance·weak entity·inferred cardinality, Flow 방향 `RL`, `BT`
