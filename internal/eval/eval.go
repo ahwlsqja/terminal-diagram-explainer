@@ -4,9 +4,7 @@ package eval
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -26,8 +24,10 @@ type Fact struct {
 }
 
 type Prompt struct {
-	ID    string `json:"id"`
-	Facts []Fact `json:"facts"`
+	ID      string `json:"id"`
+	Title   string `json:"title"`
+	Request string `json:"request"`
+	Facts   []Fact `json:"facts"`
 }
 
 type Oracle struct {
@@ -39,6 +39,7 @@ type Oracle struct {
 	RequiredNotation   []string `json:"required_notation"`
 	ProhibitedNotation []string `json:"prohibited_notation"`
 	MaxElements        int      `json:"max_elements"`
+	Category           string   `json:"category"`
 }
 
 // EvaluationResult는 eval-pack이 받는 이식 가능한 제출 형식이다.
@@ -65,8 +66,9 @@ type Claim struct {
 }
 
 type Corpus struct {
-	prompts map[string]Prompt
-	oracles map[string]Oracle
+	prompts     map[string]Prompt
+	oracles     map[string]Oracle
+	promptOrder []Prompt
 }
 
 func LoadCorpus(root string) (*Corpus, error) {
@@ -87,6 +89,7 @@ func LoadCorpus(root string) (*Corpus, error) {
 			return nil, fmt.Errorf("중복 prompt id: %s", prompt.ID)
 		}
 		corpus.prompts[prompt.ID] = prompt
+		corpus.promptOrder = append(corpus.promptOrder, prompt)
 	}
 	for _, oracle := range oracles {
 		if oracle.ID == "" {
@@ -96,6 +99,17 @@ func LoadCorpus(root string) (*Corpus, error) {
 			return nil, fmt.Errorf("중복 oracle id: %s", oracle.ID)
 		}
 		corpus.oracles[oracle.ID] = oracle
+	}
+	if len(corpus.prompts) != len(corpus.oracles) {
+		return nil, fmt.Errorf("prompt/oracle ID 집합 크기가 다름")
+	}
+	for id := range corpus.prompts {
+		if _, exists := corpus.oracles[id]; !exists {
+			return nil, fmt.Errorf("prompt %q의 oracle이 없음", id)
+		}
+	}
+	if len(corpus.promptOrder) != 18 {
+		return nil, fmt.Errorf("batch v1 corpus는 18 cases여야 함")
 	}
 	return corpus, nil
 }
@@ -113,6 +127,9 @@ func ValidateFile(root, resultPath string) error {
 }
 
 func (c *Corpus) Validate(result EvaluationResult) error {
+	if err := validateResultResources(result); err != nil {
+		return err
+	}
 	prompt, exists := c.prompts[result.CaseID]
 	if !exists {
 		return fmt.Errorf("알 수 없는 case_id: %q", result.CaseID)
@@ -167,15 +184,19 @@ func (c *Corpus) Validate(result EvaluationResult) error {
 		availableFacts[fact.ID] = struct{}{}
 	}
 	covered := make(map[string]struct{})
-	claimText := result.FinalAnswer
+	var claimText strings.Builder
+	claimText.Grow(len(result.FinalAnswer) + len(result.Renderer.Stdout) + 1)
+	claimText.WriteString(result.FinalAnswer)
 	if analysis.kind != "none" {
-		claimText += "\n" + result.Renderer.Stdout
+		claimText.WriteByte('\n')
+		claimText.WriteString(result.Renderer.Stdout)
 	}
 	for _, claim := range result.Claims {
 		if strings.TrimSpace(claim.Text) == "" || len(claim.FactIDs) == 0 {
 			return fmt.Errorf("claim은 text와 fact_ids를 모두 가져야 함")
 		}
-		claimText += "\n" + claim.Text
+		claimText.WriteByte('\n')
+		claimText.WriteString(claim.Text)
 		for _, factID := range claim.FactIDs {
 			if _, exists := availableFacts[factID]; !exists {
 				return fmt.Errorf("존재하지 않는 fact_id: %q", factID)
@@ -188,8 +209,9 @@ func (c *Corpus) Validate(result EvaluationResult) error {
 			return fmt.Errorf("필수 fact_id가 claim에 매핑되지 않음: %q", required)
 		}
 	}
+	allClaims := claimText.String()
 	for _, forbidden := range oracle.ForbiddenClaims {
-		if containsFold(claimText, forbidden) {
+		if containsFold(allClaims, forbidden) {
 			return fmt.Errorf("금지 주장 포함: %q", forbidden)
 		}
 	}
@@ -384,28 +406,19 @@ func loadJSON[T any](path string) (T, error) {
 	if err != nil {
 		return value, err
 	}
-	if err := json.Unmarshal(data, &value); err != nil {
+	if err := decodeStrict(data, &value); err != nil {
 		return value, err
 	}
 	return value, nil
 }
 
 func loadStrictResult(path string) (EvaluationResult, error) {
-	file, err := os.Open(path)
+	var result EvaluationResult
+	data, err := readBoundedFile(path, maxResultBytes)
 	if err != nil {
 		return EvaluationResult{}, err
 	}
-	defer file.Close()
-	decoder := json.NewDecoder(file)
-	decoder.DisallowUnknownFields()
-	var result EvaluationResult
-	if err := decoder.Decode(&result); err != nil {
-		return EvaluationResult{}, err
-	}
-	if err := decoder.Decode(&struct{}{}); err != io.EOF {
-		if err == nil {
-			return EvaluationResult{}, fmt.Errorf("결과 JSON은 하나의 객체여야 함")
-		}
+	if err := decodeStrict(data, &result); err != nil {
 		return EvaluationResult{}, err
 	}
 	return result, nil
@@ -418,6 +431,26 @@ func contains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func validateResultResources(result EvaluationResult) error {
+	if len(result.DiagramSource) > 256*1024 || len(result.Renderer.Stdout) > 200*1024 || len(result.Renderer.Stderr) > 16*1024 || len(result.FinalAnswer) > 256*1024 {
+		return fmt.Errorf("결과 리소스 제한 초과")
+	}
+	if len(result.Claims) > 256 {
+		return fmt.Errorf("claim 수 제한 초과")
+	}
+	total := 0
+	for _, claim := range result.Claims {
+		total += len(claim.Text)
+		if len(claim.FactIDs) > 64 {
+			return fmt.Errorf("claim fact_id 제한 초과")
+		}
+	}
+	if total > 64*1024 {
+		return fmt.Errorf("claim 텍스트 제한 초과")
+	}
+	return nil
 }
 
 func containsFold(text, want string) bool {

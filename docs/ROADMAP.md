@@ -66,6 +66,16 @@
 - `eval-pack`은 fact ID coverage와 기계 판독 가능한 fail-fast 위반을 결정적으로 거부하고, fact 문장 의미의 정합성과 점수 평가는 rubric에 남깁니다.
 - Skill은 internal fact ledger, names-are-not-evidence, strong notation direct-evidence gate, renderer stdout verbatim 계약을 적용합니다.
 
+## 9. Batch Evaluation Runner — 완료 (0.10.0)
+
+- Agent artifact submission과 독립 evaluator review를 별도 strict JSON으로 분리합니다.
+- Batch v1은 1~3 runs, run당 고정 18 cases를 정확히 한 번씩 요구하고 최대 54개 결과를 순차 replay합니다.
+- Reviewer는 의미 축 95점만 입력하며 renderer reproducibility 5점은 static replay 성공 시 runner가 부여합니다.
+- 모든 run에 평균 88, case별 75, Fact/SSoT 평균 27, static·semantic fail-fast 0건을 독립 적용해 반복 평균 희석을 막습니다.
+- Corpus·submission SHA-256 binding, 모든 depth의 duplicate JSON key 거부, 입력·result·claim·JSON depth 상한을 적용합니다.
+- Report는 입력 순서와 무관한 canonical JSON이며 exact rational score variance, case별 artifact distinct count와 safe failure code만 기록합니다.
+- Digest binding은 corpus와 artifact 불일치를 검출하지만 evaluator 신원이나 독립 실행 freshness를 인증하지 않습니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

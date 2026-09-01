@@ -95,6 +95,16 @@ go run ./cmd/eval-pack -root . -f result.json
 
 이 검증은 diagram kind·표기·요소 상한, fact ID coverage, 금지 주장, renderer exit/stderr/stdout/dimensions, 최종 답변의 stdout 원문 포함을 확인합니다. Claim 문장이 연결한 fact의 의미와 실제로 일치하는지는 자동 판정하지 않으며 [evals/RUBRIC.md](evals/RUBRIC.md)의 의미 평가로 별도 확인합니다.
 
+18개 전체를 1~3회 반복 평가할 때는 agent artifact와 evaluator review를 분리해 batch gate를 실행합니다.
+
+```bash
+go run ./cmd/eval-pack -root . -corpus-digest
+go run ./cmd/eval-pack -root . -inspect-batch submission.json > binding.json
+go run ./cmd/eval-pack -root . -batch submission.json -review review.json > report.json
+```
+
+각 run은 18개 case를 정확히 한 번 포함해야 합니다. Runner는 static validation을 통과한 case에 renderer reproducibility 5점을 직접 부여하고, run별 평균 88·모든 case 75·Fact/SSoT 평균 27·fail-fast 0건을 독립적으로 판정합니다. 반복 결과의 exact score variance와 canonical artifact SHA-256 distinct count는 정보성 지표로 report합니다.
+
 ## 설치
 
 Go 1.25 이상과 Codex CLI가 필요합니다. renderer는 `$CODEX_HOME/bin/term-diagram`에 설치됩니다.

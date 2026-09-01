@@ -83,3 +83,83 @@ Runner는 다음을 fail-closed로 검사한다.
 - unknown JSON field와 두 번째 JSON value
 
 이 runner는 claim text가 연결한 fact의 의미와 실제로 일치하는지, oracle에 열거되지 않은 민감 값, 누락된 동의어 주장이나 설명의 교육적 품질까지 판정하지 않는다. 위 Scoring은 별도의 의미 평가이며 정적 validator 통과를 점수 통과로 간주하지 않는다.
+
+## Batch Evaluation
+
+Batch v1은 agent가 만든 artifact와 evaluator가 작성한 의미 점수를 서로 다른 파일로 받는다. Agent submission에 점수나 pass 판정을 넣지 않는다.
+
+Submission의 축약 형태:
+
+```json
+{
+  "schema": "eval-pack.batch.v1",
+  "subject_id": "terminal-diagram-explainer-0.10.0",
+  "corpus_digest": "<64 lowercase hex>",
+  "runs": [
+    {
+      "run_id": "run-01",
+      "results": ["18 EvaluationResult objects"]
+    }
+  ]
+}
+```
+
+Review의 축약 형태:
+
+```json
+{
+  "schema": "eval-pack.review.v1",
+  "evaluator_id": "independent-evaluator-01",
+  "subject_id": "terminal-diagram-explainer-0.10.0",
+  "corpus_digest": "<binding corpus_digest>",
+  "submission_digest": "<binding submission_digest>",
+  "reviews": [
+    {
+      "run_id": "run-01",
+      "case_id": "customer-order-schema",
+      "fact_ssot_fidelity": 30,
+      "runtime_ownership_failure": 20,
+      "diagram_notation": 20,
+      "readability_contract": 15,
+      "security_redaction": 10,
+      "semantic_fail_fast": []
+    }
+  ]
+}
+```
+
+Evaluator는 먼저 현재 corpus digest와 submission binding을 만든다.
+
+```bash
+go run ./cmd/eval-pack -root . -corpus-digest
+go run ./cmd/eval-pack -root . -inspect-batch submission.json > binding.json
+```
+
+`binding.json`은 raw answer를 복제하지 않고 `(run_id, case_id, result_digest)`와 corpus·submission digest, renderer version만 포함한다. Review의 `subject_id`, `corpus_digest`, `submission_digest`는 이 binding과 정확히 같아야 한다.
+
+완성된 review를 집계한다.
+
+```bash
+go run ./cmd/eval-pack -root . -batch submission.json -review review.json > report.json
+```
+
+### Batch Gates
+
+- Schema `eval-pack.batch.v1`은 1~3 runs와 run당 현재 18 cases를 정확히 한 번 요구한다.
+- Evaluator는 30/20/20/15/10의 의미 축만 정수로 입력한다. Static validation 성공 시 runner가 renderer reproducibility 5점을 부여한다.
+- Static validation에 실패한 case의 evaluator 점수는 집계하지 않고 해당 관측치를 0점으로 처리한다.
+- 각 run이 독립적으로 전체 평균 88 이상, 모든 case 75 이상, Fact/SSoT 평균 27 이상, static·semantic fail-fast 0건을 만족해야 한다.
+- 다른 run의 높은 점수로 실패 run을 상쇄하지 않는다.
+- 2~3 runs이면 case별 population variance를 exact numerator/denominator로 기록한다. Canonical artifact digest의 distinct count는 정보성 지표이며 동일 결과 자체를 실패로 취급하지 않는다.
+- Semantic fail-fast는 rubric 항목에 대응하는 고정 code와 `fact:F02`, `claim[1]` 형태의 안전한 evidence reference를 하나 이상 가진다.
+- Report에는 raw validation error, answer, secret 또는 PII를 복제하지 않고 safe code만 남긴다.
+- `subject_id`, `evaluator_id`, `run_id`는 report에 표시되는 공개·비민감 metadata만 사용한다. Structural-invalid report는 입력 식별자를 반사하지 않는다.
+
+### Input Boundaries
+
+- Submission 64 MiB, review 1 MiB, canonical result 1 MiB, JSON depth 64
+- Diagram source 256 KiB, renderer stdout 200 KiB, stderr 16 KiB, final answer 256 KiB
+- Claims 256개, 전체 claim text 64 KiB, claim당 fact IDs 64개
+- Unknown field, trailing JSON value, 모든 object depth의 duplicate key, 누락·`null`·소수점 score를 거부한다.
+
+Digest binding은 review가 현재 corpus와 정확한 submission을 대상으로 했는지 확인한다. `evaluator_id`는 감사용 metadata이며 신원을 인증하지 않는다. Runner는 독립 모델 호출 여부, evaluator 독립성 또는 실행 freshness를 증명하지 않으므로 release gate에 사용할 때는 실행 환경이 이 provenance를 별도로 보장해야 한다.
