@@ -77,14 +77,20 @@ end
 erDiagram
 Customer ||--o{ Order : places
 Customer[고객] {
-  uuid id PK
+  uuid tenant_id
+  uuid id
   string email UNIQUE NOT NULL
+  PRIMARY KEY (tenant_id, id)
 }
 Order[주문] {
-  uuid customer_id FK
+  uuid tenant_id
+  uuid id
+  uuid customer_id
+  PRIMARY KEY (tenant_id, id)
+  FOREIGN KEY (tenant_id, customer_id) REFERENCES Customer(tenant_id, id)
 }
 ```
 
-ER limits: 32 entities, 64 relationships, 192 attributes total and 32 per entity. Entity IDs and display labels are unique. Attributes use `type name [PK] [FK] [UNIQUE] [NOT NULL]`; marker input order is free and output canonicalizes to `PK FK UNIQUE NOT NULL type name`. ER syntax whitespace is limited to ASCII space, tab and LF/CRLF. These markers are display metadata and do not infer references or other constraints. Relationship endpoints use entity IDs and explicit Mermaid-style cardinality markers. Self, duplicate and disconnected relationships/entities are retained in source order.
+ER limits: 32 entities, 64 relationships, 192 attributes total and 32 per entity. Entity IDs and display labels are unique. Attributes use `type name [PK] [FK] [UNIQUE] [NOT NULL]`; marker input order is free and output canonicalizes to `PK FK UNIQUE NOT NULL type name`. Multiline blocks also support 2–8-column `PRIMARY KEY (...)`, `UNIQUE (...)`, and `FOREIGN KEY (...) REFERENCES Entity(...)`; these three leading keywords are reserved inside entity bodies. Maximum 8 per entity, 64 total, 236 cells each so the row plus table padding fits the default 240-cell canvas. Attributes render before table constraints with a divider between nonempty sections. ER syntax whitespace is limited to ASCII space, tab and LF/CRLF. Composite FK preserves ordered mapping but does not infer a relationship or cardinality. Relationship endpoints use entity IDs and explicit Mermaid-style cardinality markers. Self, duplicate and disconnected relationships/entities are retained in source order.
 
-Unsupported syntax fails rather than falling back: `DEFAULT`, `CHECK`, composite/table-level constraints, class/style/click, HTML/Markdown labels, Sequence/ER notes, advanced ER inheritance/weak entity/inferred cardinality, `RL`, `BT`.
+Unsupported syntax fails rather than falling back: named `CONSTRAINT`, `DEFAULT`, `CHECK`, referential actions, inline table constraints, class/style/click, HTML/Markdown labels, Sequence/ER notes, advanced ER inheritance/weak entity/inferred cardinality, `RL`, `BT`.

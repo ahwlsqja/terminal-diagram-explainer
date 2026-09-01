@@ -61,6 +61,8 @@ ER relationship label은 schema·annotation·query에서 확인된 용어를 사
 
 UNIQUE와 NOT NULL은 DDL·ORM schema constraint 또는 명시 schema contract에서 각각 확인한다. Field 이름, 언어 type, validation code, 중복 선조회는 DB constraint를 보장하지 않는다.
 
+Composite PK/UNIQUE/FK는 ordered local column list를 그대로 보존한다. FK target entity와 target column list까지 직접 확인하고, column 이름이 비슷하다는 이유로 mapping이나 cardinality를 만들지 않는다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

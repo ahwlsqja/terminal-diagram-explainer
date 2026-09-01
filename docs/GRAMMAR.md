@@ -1,4 +1,4 @@
-# 0.11 문법
+# 0.12 문법
 
 ## Header
 
@@ -152,12 +152,17 @@ end
 erDiagram
 Customer ||--o{ Order : places orders
 Customer[고객] {
-  uuid id PK
+  uuid tenant_id
+  uuid id
   string email UNIQUE NOT NULL
+  PRIMARY KEY (tenant_id, id)
 }
 Order[주문] {
-  uuid id PK
-  uuid customer_id PK FK
+  uuid tenant_id
+  uuid id
+  uuid customer_id
+  PRIMARY KEY (tenant_id, id)
+  FOREIGN KEY (tenant_id, customer_id) REFERENCES Customer(tenant_id, id)
 }
 Audit[감사] {}
 ```
@@ -168,13 +173,27 @@ Audit[감사] {}
 - `NOT NULL`은 인접한 두 token으로 이루어진 하나의 marker입니다. Marker는 대문자 exact form만 허용합니다.
 - ER 구문의 공백 separator는 ASCII space, tab, LF/CRLF만 허용하며 NBSP·Unicode line/paragraph separator는 거부합니다.
 - Attribute type/name은 ASCII ID이고 name은 entity 안에서 유일합니다. PK/FK/UNIQUE/NOT NULL은 표시 metadata이며 relationship, target 또는 다른 constraint를 자동 추론하지 않습니다.
-- `DEFAULT`, `CHECK`, `PRIMARY KEY`, composite/table-level `UNIQUE`·FK는 지원하지 않습니다.
+- Multiline entity block은 다음 table constraint를 지원합니다. 각 column list는 2~8개이며 source order를 보존합니다.
+
+```text
+PRIMARY KEY (tenant_id, id)
+UNIQUE (tenant_id, email)
+FOREIGN KEY (tenant_id, customer_id) REFERENCES Customer(tenant_id, id)
+```
+
+- Table constraint keyword는 대문자 exact form입니다. ASCII space/tab은 괄호·comma 주변에서 허용하고 출력은 위 형식으로 정규화합니다.
+- `PRIMARY`, `UNIQUE`, `FOREIGN`은 multiline entity body의 첫 token에서 table-constraint keyword로 예약됩니다.
+- Local attribute와 FK target entity/attribute는 뒤에 선언할 수 있으며 EOF에서 해소합니다. Self-reference도 허용합니다.
+- Entity마다 table constraint 최대 8개, diagram 전체 64개, constraint text 최대 236 cells입니다. 좌우 table padding을 포함해 기본 240-cell canvas에 들어갑니다.
+- Table PRIMARY KEY는 entity당 하나이며 attribute PK와 혼용하지 않습니다. Composite FK의 local/target column 수는 같아야 합니다.
+- Composite FK는 relationship·cardinality·attribute FK marker를 자동 생성하지 않습니다. 별도 relationship은 별도 source evidence가 있어야 합니다.
+- Named `CONSTRAINT`, `DEFAULT`, `CHECK`, referential actions, inline table constraint는 지원하지 않습니다.
 - Relationship은 `From <left-marker>--<right-marker> To : label` 형식입니다. Entity block보다 앞에 쓸 수 있지만 EOF까지 모든 endpoint block이 명시되어야 합니다.
 - Left marker: `o|`=0..1, `||`=1, `}o`=0..N, `}|`=1..N.
 - Right marker: `|o`=0..1, `||`=1, `o{`=0..N, `|{`=1..N.
 - 첫 `:` 뒤 나머지가 필수 relationship label입니다. Self·duplicate·reverse relationship을 source order로 보존합니다.
 - 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
-- Renderer는 component별 vertical entity tables, endpoint cardinality marker, source-order rails와 `relationships:` legend를 사용합니다.
+- Renderer는 attributes 다음에 table constraints를 source order로 표시하고 두 section이 모두 있으면 divider를 둡니다. Explicit relationship만 endpoint cardinality marker, source-order rails와 `relationships:` legend를 만듭니다.
 
 ## Rejected input
 

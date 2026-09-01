@@ -3,6 +3,8 @@ package er_test
 import (
 	"errors"
 	"fmt"
+	"math"
+	"slices"
 	"strings"
 	"testing"
 
@@ -273,6 +275,126 @@ func TestParseERConstraintAttributeCountAndWidthLimits(t *testing.T) {
 	}
 }
 
+func TestParseERCompositeTableConstraintsResolveForwardAndSelf(t *testing.T) {
+	source := `erDiagram
+Order {
+  PRIMARY KEY (tenant_id, id)
+  UNIQUE (tenant_id, email)
+  FOREIGN KEY (tenant_id, account_id) REFERENCES Account(tenant_id, id)
+  uuid tenant_id
+  uuid id
+  uuid account_id
+  string email
+}
+Account {
+  uuid tenant_id
+  uuid id
+  FOREIGN KEY (tenant_id, id) REFERENCES Account(tenant_id, id)
+}`
+	diagram, err := er.Parse(source, er.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(diagram.Relationships) != 0 || len(diagram.Entities[0].TableConstraints) != 3 || len(diagram.Entities[1].TableConstraints) != 1 {
+		t.Fatalf("diagram=%#v", diagram)
+	}
+	for index, want := range []er.TableConstraintKind{er.CompositePrimaryKey, er.CompositeUnique, er.CompositeForeignKey} {
+		if got := diagram.Entities[0].TableConstraints[index].Kind; got != want {
+			t.Fatalf("constraint %d kind=%v", index, got)
+		}
+	}
+	foreign := diagram.Entities[0].TableConstraints[2]
+	if got, want := foreign.Columns, []int{0, 2}; !slices.Equal(got, want) || foreign.Reference == nil || foreign.Reference.Entity != 1 || !slices.Equal(foreign.Reference.Columns, []int{0, 1}) {
+		t.Fatalf("foreign=%+v", foreign)
+	}
+}
+
+func TestParseERCompositeTableConstraintRejectsBadColumns(t *testing.T) {
+	for _, source := range []string{
+		"erDiagram\nA {\nstring a\nstring b\nPRIMARY KEY (a)\n}",
+		"erDiagram\nA {\nstring a\nstring b\nPRIMARY KEY (a, a)\n}",
+		"erDiagram\nA {\nstring a\nstring b\nPRIMARY KEY (a, missing)\n}",
+		"erDiagram\nA {\nstring a PK\nstring b\nPRIMARY KEY (a, b)\n}",
+		"erDiagram\nA {\nstring a\nstring b\nPRIMARY KEY (a, b)\nPRIMARY KEY (a, b)\n}",
+		"erDiagram\nA {\nstring a\nstring b\nFOREIGN KEY (a, b) REFERENCES A(a)\n}",
+	} {
+		diagram, err := er.Parse(source, er.DefaultLimits())
+		if err == nil || diagram != nil {
+			t.Fatalf("source=%q diagram=%#v err=%v", source, diagram, err)
+		}
+	}
+}
+
+func TestParseERCompositeKeywordsDoNotCaptureAttributePrefixes(t *testing.T) {
+	diagram, err := er.Parse("erDiagram\nA{\nUNIQUEtype one\nFOREIGNtype two\nPRIMARYtype three\n}\n", er.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := diagram.Entities[0].Attributes; len(got) != 3 || got[0].Type != "UNIQUEtype" || got[1].Type != "FOREIGNtype" || got[2].Type != "PRIMARYtype" {
+		t.Fatalf("attributes=%#v", got)
+	}
+}
+
+func TestParseERCompositeHugeCustomColumnLimitDoesNotPreallocate(t *testing.T) {
+	limits := er.DefaultLimits()
+	limits.MaxTableConstraintColumns = math.MaxInt
+	diagram, err := er.Parse("erDiagram\nA{\nstring a\nstring b\nUNIQUE (a, b)\n}\n", limits)
+	if err != nil || diagram == nil {
+		t.Fatalf("diagram=%#v err=%v", diagram, err)
+	}
+}
+
+func TestParseERCompositeTableConstraintLimits(t *testing.T) {
+	limits := er.DefaultLimits()
+	if limits.MaxTableConstraints != 64 || limits.MaxTableConstraintsPerEntity != 8 || limits.MaxTableConstraintColumns != 8 || limits.MaxTableConstraintCells != 236 {
+		t.Fatalf("limits=%+v", limits)
+	}
+	columns := []string{"a", "b", "c", "d", "e", "f", "g", "h"}
+	attributes := "string a\nstring b\nstring c\nstring d\nstring e\nstring f\nstring g\nstring h\n"
+	if _, err := er.Parse("erDiagram\nA{\n"+attributes+"UNIQUE ("+strings.Join(columns, ", ")+")\n}", limits); err != nil {
+		t.Fatal(err)
+	}
+	if diagram, err := er.Parse("erDiagram\nA{\n"+attributes+"UNIQUE ("+strings.Join(append(columns, "i"), ", ")+")\n}", limits); err == nil || diagram != nil {
+		t.Fatalf("9 columns=%#v %v", diagram, err)
+	}
+}
+
+func TestFormatEntityTableConstraintInvalidIndicesDoNotPanic(t *testing.T) {
+	entity := er.Entity{ID: "A", Attributes: []er.Attribute{{Type: "string", Name: "a"}, {Type: "string", Name: "b"}}}
+	for _, constraint := range []er.TableConstraint{
+		{Kind: er.CompositeUnique, Columns: []int{-1, 1}},
+		{Kind: er.CompositeUnique, Columns: []int{0, 2}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 3, Columns: []int{0, 1}}},
+	} {
+		if got := er.FormatEntityTableConstraint(entity, constraint, []er.Entity{entity}); got != "" {
+			t.Fatalf("invalid constraint formatted: %+v -> %q", constraint, got)
+		}
+	}
+}
+
+func TestParseERCompositeTableConstraintCellBoundary(t *testing.T) {
+	first := strings.Repeat("a", 64)
+	second := strings.Repeat("b", 64)
+	third := strings.Repeat("c", 64)
+	within := strings.Repeat("d", 29) // UNIQUE 행은 정확히 236 cells다.
+	over := strings.Repeat("d", 30)
+	attributes := "string " + first + "\nstring " + second + "\nstring " + third + "\n"
+	for _, test := range []struct {
+		name, last string
+		valid      bool
+	}{{"236", within, true}, {"237", over, false}} {
+		source := "erDiagram\nA{\n" + attributes + "string " + test.last + "\nUNIQUE (" + first + ", " + second + ", " + third + ", " + test.last + ")\n}"
+		diagram, err := er.Parse(source, er.DefaultLimits())
+		if test.valid && err != nil {
+			t.Fatalf("%s: %v", test.name, err)
+		}
+		if !test.valid && (err == nil || diagram != nil) {
+			t.Fatalf("%s: diagram=%#v err=%v", test.name, diagram, err)
+		}
+	}
+}
+
 func TestParseERRejectsForbiddenSourceCharacters(t *testing.T) {
 	for _, source := range []string{
 		"erDiagram\nA{\nstring id\v\n}",
@@ -294,7 +416,7 @@ func TestParseERRejectsForbiddenSourceCharacters(t *testing.T) {
 }
 
 func FuzzParseNoPanic(f *testing.F) {
-	for _, source := range []string{"erDiagram\nA{}", "erDiagram\nA ||--o{ B : x\nA{}\nB{}", "erDiagram\nA{\nstring id UNIQUE NOT NULL\n}", "erDiagram\n%% \u202e\nA{}", "\xff"} {
+	for _, source := range []string{"erDiagram\nA{}", "erDiagram\nA ||--o{ B : x\nA{}\nB{}", "erDiagram\nA{\nstring id UNIQUE NOT NULL\n}", "erDiagram\nA{\nstring a\nstring b\nUNIQUE (a, b)\n}", "erDiagram\nA{\nstring a\nstring b\nFOREIGN KEY (a, b) REFERENCES A(a, b)\n}", "erDiagram\n%% \u202e\nA{}", "\xff"} {
 		f.Add(source)
 	}
 	f.Fuzz(func(t *testing.T, source string) {

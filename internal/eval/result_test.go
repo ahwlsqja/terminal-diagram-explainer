@@ -105,7 +105,7 @@ func TestValidateResultChecksEvidenceAndRendererReplay(t *testing.T) {
 		{
 			name: "required notation in comment is not evidence",
 			mutate: func(result *EvaluationResult) {
-				result.DiagramSource = strings.ReplaceAll(result.DiagramSource, "uuid id PK", "uuid id") + "\n%% PK"
+				result.DiagramSource = strings.ReplaceAll(result.DiagramSource, "PRIMARY KEY (tenant_id, id)\n", "") + "\n%% PRIMARY KEY (tenant_id, id)"
 				_, renderer, _, err := Replay(result.DiagramSource)
 				if err != nil {
 					t.Fatal(err)
@@ -118,6 +118,18 @@ func TestValidateResultChecksEvidenceAndRendererReplay(t *testing.T) {
 			name: "constraint notation in comment is not evidence",
 			mutate: func(result *EvaluationResult) {
 				result.DiagramSource = strings.Replace(result.DiagramSource, "text email UNIQUE NOT NULL", "text email NOT NULL", 1) + "\n%% UNIQUE"
+				_, renderer, _, err := Replay(result.DiagramSource)
+				if err != nil {
+					t.Fatal(err)
+				}
+				result.Renderer = renderer
+			},
+			want: "필수 표기",
+		},
+		{
+			name: "composite constraint in comment is not evidence",
+			mutate: func(result *EvaluationResult) {
+				result.DiagramSource = strings.Replace(result.DiagramSource, "UNIQUE (tenant_id, email)", "", 1) + "\n%% UNIQUE (tenant_id, email)"
 				_, renderer, _, err := Replay(result.DiagramSource)
 				if err != nil {
 					t.Fatal(err)
@@ -294,12 +306,12 @@ func validCustomerOrderResult(t *testing.T, root string) EvaluationResult {
 		DiagramSource: source,
 		Renderer:      renderer,
 		Claims: []Claim{
-			{Text: "customers.id와 orders.id는 primary key다.", FactIDs: []string{"F01"}},
-			{Text: "orders.customer_id는 customers.id를 references한다.", FactIDs: []string{"F02"}},
+			{Text: "Customer와 Order에는 ordered composite primary key가 명시되어 있다.", FactIDs: []string{"F01"}},
+			{Text: "Order의 tenant_id와 customer_id는 Customer의 tenant_id와 id를 순서대로 references한다.", FactIDs: []string{"F02"}},
 			{Text: "Customer 하나에는 Order가 0..N이고 Order는 Customer 하나에 속한다.", FactIDs: []string{"F03"}},
-			{Text: "customers.email에는 UNIQUE와 NOT NULL이 명시되어 있다.", FactIDs: []string{"F04"}},
+			{Text: "Customer email에는 attribute와 composite unique constraint가 명시되어 있다.", FactIDs: []string{"F04"}},
 		},
-		FinalAnswer: "명시된 PK, FK, UNIQUE, NOT NULL, cardinality만 설명한다.\n" + renderer.Stdout,
+		FinalAnswer: "명시된 attribute와 ordered table constraints, 별도 cardinality만 설명한다.\n" + renderer.Stdout,
 	}
 }
 

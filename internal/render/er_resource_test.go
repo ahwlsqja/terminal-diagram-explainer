@@ -34,6 +34,34 @@ func TestERFullParserMaximumFailsBoundsSafelyAndAllocationsStayBounded(t *testin
 	t.Logf("ER full-max failure allocations/run=%.0f", allocations)
 }
 
+func TestERMaximumCompositeConstraintsFailBoundsSafely(t *testing.T) {
+	diagram := &er.Diagram{Entities: make([]er.Entity, 8)}
+	for entityIndex := range diagram.Entities {
+		entity := er.Entity{
+			ID:    fmt.Sprintf("E%d", entityIndex),
+			Label: fmt.Sprintf("E%d", entityIndex),
+			Attributes: []er.Attribute{
+				{Type: "string", Name: "tenant_id"},
+				{Type: "string", Name: "id"},
+			},
+		}
+		for constraintIndex := 0; constraintIndex < 8; constraintIndex++ {
+			entity.TableConstraints = append(entity.TableConstraints, er.TableConstraint{Kind: er.CompositeUnique, Columns: []int{0, 1}})
+		}
+		diagram.Entities[entityIndex] = entity
+	}
+	output, err := ER(diagram, Options{MaxWidth: 512, MaxHeight: 512})
+	if err != nil || output == "" {
+		t.Fatalf("64 constraints render failed output=%q err=%v", output, err)
+	}
+	allocations := testing.AllocsPerRun(10, func() {
+		_, _ = ER(diagram, Options{MaxWidth: 512, MaxHeight: 512})
+	})
+	if allocations > 3_000 {
+		t.Fatalf("composite ER allocations/run=%.0f", allocations)
+	}
+}
+
 func TestERTightBounds(t *testing.T) {
 	diagram := &er.Diagram{Entities: []er.Entity{{ID: "A", Label: "A", Attributes: []er.Attribute{{Type: "uuid", Name: "id", Key: er.PrimaryKey}}}}}
 	output, err := ER(diagram, Options{MaxWidth: 100, MaxHeight: 30})
@@ -83,7 +111,7 @@ func FuzzERNoPanic(f *testing.F) {
 	}
 	f.Fuzz(func(t *testing.T, mode uint8) {
 		diagram := &er.Diagram{Entities: []er.Entity{{ID: "A", Label: "A"}}}
-		switch mode % 5 {
+		switch mode % 7 {
 		case 1:
 			diagram.Entities[0].Label = "bad\x1b"
 		case 2:
@@ -92,6 +120,12 @@ func FuzzERNoPanic(f *testing.F) {
 			diagram.Relationships = []er.Relationship{{From: -1, To: 0, Label: "bad"}}
 		case 4:
 			diagram.Relationships = []er.Relationship{{From: 0, To: 0, FromMarker: er.ExactlyOne, ToMarker: er.ZeroOrMany, Label: "self"}}
+		case 5:
+			diagram.Entities[0].Attributes = []er.Attribute{{Type: "string", Name: "a"}, {Type: "string", Name: "b"}}
+			diagram.Entities[0].TableConstraints = []er.TableConstraint{{Kind: er.CompositeUnique, Columns: []int{0, 1}}}
+		case 6:
+			diagram.Entities[0].Attributes = []er.Attribute{{Type: "string", Name: "a"}, {Type: "string", Name: "b"}}
+			diagram.Entities[0].TableConstraints = []er.TableConstraint{{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 0, Columns: []int{0, 2}}}}
 		}
 		defer func() {
 			if recovered := recover(); recovered != nil {

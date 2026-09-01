@@ -85,6 +85,15 @@
 - Unknown marker/bit, duplicate·부분 `NOT NULL`, lowercase marker, `DEFAULT`·`CHECK`, source control·bidi를 fail-closed 처리합니다.
 - 기존 18-case corpus의 positive schema와 negative name-only case를 확장해 strong-notation evidence gate를 유지합니다.
 
+## 11. Composite Schema Constraints — 완료 (0.12.0)
+
+- SQL-like `PRIMARY KEY`, `UNIQUE`, `FOREIGN KEY ... REFERENCES` table constraints를 attribute·relationship과 분리된 AST로 보존합니다.
+- 2~8 ordered columns, entity당 8/전체 64 constraints, 기본 240-cell canvas에 맞춘 236-cell canonical row hard limit을 적용합니다.
+- Local attributes와 self/forward target entity·attributes를 EOF에서 index로 resolve하고 direct AST도 동일 불변식을 재검증합니다.
+- Attributes 다음에 table constraints를 source order로 렌더하고 두 section 사이에 divider를 둡니다.
+- Composite FK는 ordered mapping만 표시하며 relationship·cardinality·attribute marker를 추론하지 않습니다.
+- 기존 18-case positive schema와 negative name-only case를 확장해 ordered-column evidence gate를 검증합니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

@@ -10,10 +10,14 @@ import (
 )
 
 const (
-	maxEREntities            = 32
-	maxERRelationships       = 64
-	maxERAttributes          = 192
-	maxERAttributesPerEntity = 32
+	maxEREntities                  = 32
+	maxERRelationships             = 64
+	maxERAttributes                = 192
+	maxERAttributesPerEntity       = 32
+	maxERTableConstraints          = 64
+	maxERTableConstraintsPerEntity = 8
+	maxERTableConstraintColumns    = 8
+	maxERTableConstraintCells      = 236
 )
 
 var ErrInvalidER = errors.New("유효하지 않은 ER diagram")
@@ -56,7 +60,7 @@ func ER(diagram *er.Diagram, options Options) (string, error) {
 		return "", err
 	}
 	for index, entity := range diagram.Entities {
-		if err := drawEREntity(canvas, entity, layout.entities[index].box); err != nil {
+		if err := drawEREntity(canvas, entity, diagram.Entities, layout.entities[index].box); err != nil {
 			return "", err
 		}
 	}
@@ -112,6 +116,7 @@ func validateER(diagram *er.Diagram) error {
 	ids := make(map[string]struct{}, len(diagram.Entities))
 	labels := make(map[string]struct{}, len(diagram.Entities))
 	totalAttributes := 0
+	totalConstraints := 0
 	for entityIndex, entity := range diagram.Entities {
 		if !validNodeID(entity.ID, maxRenderIDBytes) {
 			return fmt.Errorf("%w: entity %d ID", ErrInvalidER, entityIndex)
@@ -130,6 +135,9 @@ func validateER(diagram *er.Diagram) error {
 		if len(entity.Attributes) > maxERAttributesPerEntity {
 			return fmt.Errorf("%w: entity %d attributes", ErrInvalidER, entityIndex)
 		}
+		if len(entity.TableConstraints) > maxERTableConstraintsPerEntity {
+			return fmt.Errorf("%w: entity %d table constraints", ErrInvalidER, entityIndex)
+		}
 		totalAttributes += len(entity.Attributes)
 		attributeNames := make(map[string]struct{}, len(entity.Attributes))
 		for attributeIndex, attribute := range entity.Attributes {
@@ -144,9 +152,63 @@ func validateER(diagram *er.Diagram) error {
 				return fmt.Errorf("%w: attribute text", ErrInvalidER)
 			}
 		}
+		hasAttributePrimaryKey := false
+		for _, attribute := range entity.Attributes {
+			hasAttributePrimaryKey = hasAttributePrimaryKey || attribute.Key&er.PrimaryKey != 0
+		}
+		hasTablePrimaryKey := false
+		for constraintIndex, constraint := range entity.TableConstraints {
+			totalConstraints++
+			if constraint.Kind < er.CompositePrimaryKey || constraint.Kind > er.CompositeForeignKey {
+				return fmt.Errorf("%w: entity %d table constraint %d kind", ErrInvalidER, entityIndex, constraintIndex)
+			}
+			if len(constraint.Columns) < 2 || len(constraint.Columns) > maxERTableConstraintColumns {
+				return fmt.Errorf("%w: table constraint columns", ErrInvalidER)
+			}
+			seen := make(map[int]struct{}, len(constraint.Columns))
+			for _, column := range constraint.Columns {
+				if column < 0 || column >= len(entity.Attributes) {
+					return fmt.Errorf("%w: table constraint local column", ErrInvalidER)
+				}
+				if _, exists := seen[column]; exists {
+					return fmt.Errorf("%w: duplicate table constraint column", ErrInvalidER)
+				}
+				seen[column] = struct{}{}
+			}
+			if constraint.Kind == er.CompositeForeignKey {
+				if constraint.Reference == nil || constraint.Reference.Entity < 0 || constraint.Reference.Entity >= len(diagram.Entities) || len(constraint.Reference.Columns) != len(constraint.Columns) {
+					return fmt.Errorf("%w: foreign table constraint reference", ErrInvalidER)
+				}
+				referenceEntity := diagram.Entities[constraint.Reference.Entity]
+				referenceSeen := make(map[int]struct{}, len(constraint.Reference.Columns))
+				for _, column := range constraint.Reference.Columns {
+					if column < 0 || column >= len(referenceEntity.Attributes) {
+						return fmt.Errorf("%w: foreign table constraint reference column", ErrInvalidER)
+					}
+					if _, exists := referenceSeen[column]; exists {
+						return fmt.Errorf("%w: duplicate foreign reference column", ErrInvalidER)
+					}
+					referenceSeen[column] = struct{}{}
+				}
+			} else if constraint.Reference != nil {
+				return fmt.Errorf("%w: non-foreign table constraint reference", ErrInvalidER)
+			}
+			if constraint.Kind == er.CompositePrimaryKey {
+				if hasTablePrimaryKey || hasAttributePrimaryKey {
+					return fmt.Errorf("%w: mixed or duplicate primary key", ErrInvalidER)
+				}
+				hasTablePrimaryKey = true
+			}
+			if width, err := textcell.Width(er.FormatEntityTableConstraint(entity, constraint, diagram.Entities)); err != nil || width == 0 || width > maxERTableConstraintCells {
+				return fmt.Errorf("%w: table constraint text", ErrInvalidER)
+			}
+		}
 	}
 	if totalAttributes > maxERAttributes {
 		return fmt.Errorf("%w: total attributes", ErrInvalidER)
+	}
+	if totalConstraints > maxERTableConstraints {
+		return fmt.Errorf("%w: total table constraints", ErrInvalidER)
 	}
 	for relationshipIndex, relationship := range diagram.Relationships {
 		if relationship.From < 0 || relationship.From >= len(diagram.Entities) || relationship.To < 0 || relationship.To >= len(diagram.Entities) {
@@ -209,7 +271,7 @@ func planER(diagram *er.Diagram) (erLayout, error) {
 	componentWidths := make([]int, len(components))
 	for component, entities := range components {
 		for _, entityIndex := range entities {
-			width, err := erEntityWidth(diagram.Entities[entityIndex])
+			width, err := erEntityWidth(diagram.Entities[entityIndex], diagram.Entities)
 			if err != nil {
 				return erLayout{}, err
 			}
@@ -220,8 +282,8 @@ func planER(diagram *er.Diagram) (erLayout, error) {
 	for component, entities := range components {
 		for entityOffset, entityIndex := range entities {
 			entity := diagram.Entities[entityIndex]
-			width, _ := erEntityWidth(entity)
-			height := 4 + len(entity.Attributes)
+			width, _ := erEntityWidth(entity, diagram.Entities)
+			height := erEntityHeight(entity)
 			layout.entities[entityIndex] = erEntityLayout{box: placement{x: 0, y: y, width: width, height: height}, portCount: degrees[entityIndex]}
 			y += height + degrees[entityIndex]
 			if entityOffset+1 < len(entities) {
@@ -268,7 +330,7 @@ func planER(diagram *er.Diagram) (erLayout, error) {
 	return layout, nil
 }
 
-func erEntityWidth(entity er.Entity) (int, error) {
+func erEntityWidth(entity er.Entity, entities []er.Entity) (int, error) {
 	labelWidth, err := textcell.Width(entity.Label)
 	if err != nil {
 		return 0, err
@@ -281,10 +343,25 @@ func erEntityWidth(entity er.Entity) (int, error) {
 		}
 		width = max(width, attributeWidth+4)
 	}
+	for _, constraint := range entity.TableConstraints {
+		constraintWidth, constraintErr := textcell.Width(er.FormatEntityTableConstraint(entity, constraint, entities))
+		if constraintErr != nil {
+			return 0, constraintErr
+		}
+		width = max(width, constraintWidth+4)
+	}
 	return width, nil
 }
 
-func drawEREntity(canvas *canvas, entity er.Entity, current placement) error {
+func erEntityHeight(entity er.Entity) int {
+	height := 4 + len(entity.Attributes) + len(entity.TableConstraints)
+	if len(entity.Attributes) > 0 && len(entity.TableConstraints) > 0 {
+		height++
+	}
+	return height
+}
+
+func drawEREntity(canvas *canvas, entity er.Entity, entities []er.Entity, current placement) error {
 	left, right := current.x, current.x+current.width-1
 	top, bottom := current.y, current.y+current.height-1
 	topLeft, topRight, bottomLeft, bottomRight, horizontal, vertical, teeLeft, teeRight := "┌", "┐", "└", "┘", "─", "│", "├", "┤"
@@ -306,6 +383,11 @@ func drawEREntity(canvas *canvas, entity er.Entity, current placement) error {
 		if err := canvas.put(x, top+2, horizontal); err != nil {
 			return err
 		}
+		if len(entity.Attributes) > 0 && len(entity.TableConstraints) > 0 {
+			if err := canvas.put(x, top+3+len(entity.Attributes), horizontal); err != nil {
+				return err
+			}
+		}
 		if err := canvas.put(x, bottom, horizontal); err != nil {
 			return err
 		}
@@ -315,6 +397,15 @@ func drawEREntity(canvas *canvas, entity er.Entity, current placement) error {
 	}
 	if err := canvas.put(right, top+2, teeRight); err != nil {
 		return err
+	}
+	if len(entity.Attributes) > 0 && len(entity.TableConstraints) > 0 {
+		divider := top + 3 + len(entity.Attributes)
+		if err := canvas.put(left, divider, teeLeft); err != nil {
+			return err
+		}
+		if err := canvas.put(right, divider, teeRight); err != nil {
+			return err
+		}
 	}
 	for y := top + 1; y < bottom; y++ {
 		if y == top+2 {
@@ -333,6 +424,15 @@ func drawEREntity(canvas *canvas, entity er.Entity, current placement) error {
 	}
 	for index, attribute := range entity.Attributes {
 		if err := canvas.putText(left+2, top+3+index, er.FormatAttribute(attribute)); err != nil {
+			return err
+		}
+	}
+	constraintY := top + 3 + len(entity.Attributes)
+	if len(entity.Attributes) > 0 && len(entity.TableConstraints) > 0 {
+		constraintY++
+	}
+	for index, constraint := range entity.TableConstraints {
+		if err := canvas.putText(left+2, constraintY+index, er.FormatEntityTableConstraint(entity, constraint, entities)); err != nil {
 			return err
 		}
 	}

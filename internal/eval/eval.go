@@ -306,6 +306,18 @@ func analyze(source string) (sourceAnalysis, error) {
 					features["NOT NULL"] = true
 				}
 			}
+			for _, constraint := range entity.TableConstraints {
+				formatted := er.FormatEntityTableConstraint(entity, constraint, diagram.Entities)
+				features[formatted] = true
+				switch constraint.Kind {
+				case er.CompositePrimaryKey:
+					features["PRIMARY KEY ("] = true
+				case er.CompositeUnique:
+					features["UNIQUE ("] = true
+				case er.CompositeForeignKey:
+					features["FOREIGN KEY ("] = true
+				}
+			}
 		}
 		for _, relation := range diagram.Relationships {
 			if relation.FromMarker == er.ExactlyOne && relation.ToMarker == er.ZeroOrMany {

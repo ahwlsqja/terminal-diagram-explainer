@@ -54,9 +54,62 @@ func FormatAttribute(attribute Attribute) string {
 }
 
 type Entity struct {
-	ID         string
-	Label      string
-	Attributes []Attribute
+	ID               string
+	Label            string
+	Attributes       []Attribute
+	TableConstraints []TableConstraint
+}
+
+// TableConstraintKind는 entity 본문에 독립 행으로 선언되는 복합 제약의 종류다.
+// 0은 유효한 종류가 아니므로, 직접 AST를 만들 때도 누락을 발견할 수 있다.
+type TableConstraintKind uint8
+
+const (
+	CompositePrimaryKey TableConstraintKind = iota + 1
+	CompositeUnique
+	CompositeForeignKey
+)
+
+type ForeignReference struct {
+	Entity  int
+	Columns []int
+}
+
+type TableConstraint struct {
+	Kind      TableConstraintKind
+	Columns   []int
+	Reference *ForeignReference
+}
+
+func FormatEntityTableConstraint(entity Entity, constraint TableConstraint, entities []Entity) string {
+	columns := make([]string, len(constraint.Columns))
+	for index, column := range constraint.Columns {
+		if column < 0 || column >= len(entity.Attributes) {
+			return ""
+		}
+		columns[index] = entity.Attributes[column].Name
+	}
+	switch constraint.Kind {
+	case CompositePrimaryKey:
+		return "PRIMARY KEY (" + strings.Join(columns, ", ") + ")"
+	case CompositeUnique:
+		return "UNIQUE (" + strings.Join(columns, ", ") + ")"
+	case CompositeForeignKey:
+		if constraint.Reference == nil || constraint.Reference.Entity < 0 || constraint.Reference.Entity >= len(entities) {
+			return ""
+		}
+		referenceEntity := entities[constraint.Reference.Entity]
+		referenceColumns := make([]string, len(constraint.Reference.Columns))
+		for index, column := range constraint.Reference.Columns {
+			if column < 0 || column >= len(referenceEntity.Attributes) {
+				return ""
+			}
+			referenceColumns[index] = referenceEntity.Attributes[column].Name
+		}
+		return "FOREIGN KEY (" + strings.Join(columns, ", ") + ") REFERENCES " + referenceEntity.ID + "(" + strings.Join(referenceColumns, ", ") + ")"
+	default:
+		return ""
+	}
 }
 
 type Relationship struct {
@@ -73,25 +126,33 @@ type Diagram struct {
 }
 
 type Limits struct {
-	MaxSourceBytes         int
-	MaxLines               int
-	MaxEntities            int
-	MaxRelationships       int
-	MaxAttributes          int
-	MaxAttributesPerEntity int
-	MaxIDBytes             int
-	MaxLabelCells          int
+	MaxSourceBytes               int
+	MaxLines                     int
+	MaxEntities                  int
+	MaxRelationships             int
+	MaxAttributes                int
+	MaxAttributesPerEntity       int
+	MaxTableConstraints          int
+	MaxTableConstraintsPerEntity int
+	MaxTableConstraintColumns    int
+	MaxTableConstraintCells      int
+	MaxIDBytes                   int
+	MaxLabelCells                int
 }
 
 func DefaultLimits() Limits {
 	return Limits{
-		MaxSourceBytes:         256 * 1024,
-		MaxLines:               2048,
-		MaxEntities:            32,
-		MaxRelationships:       64,
-		MaxAttributes:          192,
-		MaxAttributesPerEntity: 32,
-		MaxIDBytes:             64,
-		MaxLabelCells:          96,
+		MaxSourceBytes:               256 * 1024,
+		MaxLines:                     2048,
+		MaxEntities:                  32,
+		MaxRelationships:             64,
+		MaxAttributes:                192,
+		MaxAttributesPerEntity:       32,
+		MaxTableConstraints:          64,
+		MaxTableConstraintsPerEntity: 8,
+		MaxTableConstraintColumns:    8,
+		MaxTableConstraintCells:      236,
+		MaxIDBytes:                   64,
+		MaxLabelCells:                96,
 	}
 }

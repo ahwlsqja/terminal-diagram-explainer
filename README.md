@@ -60,22 +60,29 @@ Worker ->> Worker: record metrics
 erDiagram
 Customer ||--o{ Order : places
 Customer[고객] {
-  uuid id PK
+  uuid tenant_id
+  uuid id
   string email UNIQUE NOT NULL
+  PRIMARY KEY (tenant_id, id)
 }
 Order[주문] {
-  uuid id PK
-  uuid customer_id FK
+  uuid tenant_id
+  uuid id
+  uuid customer_id
+  PRIMARY KEY (tenant_id, id)
+  FOREIGN KEY (tenant_id, customer_id) REFERENCES Customer(tenant_id, id)
 }
 ```
 
 - Entity block은 `ID { ... }` 또는 `ID[display label] { ... }`입니다.
 - Attribute는 `type name [PK] [FK] [UNIQUE] [NOT NULL]`이며 marker 조합과 순서 변경을 허용합니다. 출력은 `PK FK UNIQUE NOT NULL type name` 순서로 정규화합니다.
 - PK가 NOT NULL을 암묵 생성하지 않으며, relationship·constraint·target을 field 이름에서 추론하지 않습니다.
+- Multiline entity block은 2~8 columns의 `PRIMARY KEY (...)`, `UNIQUE (...)`, `FOREIGN KEY (...) REFERENCES Entity(...)` table constraint를 지원합니다.
+- Composite FK는 ordered column mapping만 표시하며 relationship·cardinality·attribute FK marker를 자동 생성하지 않습니다.
 - Cardinality marker는 `0..1`, `1`, `0..N`, `1..N` 네 종류를 명시합니다.
 - Self·duplicate relationship과 disconnected entity를 지원합니다.
 - 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
-- `DEFAULT`, `CHECK`, composite/table-level constraint, `classDef`, `style`, `click`, HTML/Markdown label, Sequence/ER note와 advanced ER semantics는 아직 명시적으로 거부합니다.
+- Named `CONSTRAINT`, `DEFAULT`, `CHECK`, referential actions, inline table constraint, `classDef`, `style`, `click`, HTML/Markdown label, Sequence/ER note와 advanced ER semantics는 아직 명시적으로 거부합니다.
 
 ## 개발 검증
 

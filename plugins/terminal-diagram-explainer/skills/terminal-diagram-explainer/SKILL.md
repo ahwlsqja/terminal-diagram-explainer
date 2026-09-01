@@ -60,6 +60,9 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 실제로 독립 실행 가능한 branch를 함께 보여줄 때만 `par label ... and label ... end`를 사용한다.
 - `par` branch의 source/display order를 실행 순서나 happens-before로 설명하지 않는다. 각 branch 내부 순서와 frame 전후 경계만 순서 의미를 가진다.
 - ER entity는 `ID[display label] { ... }`, attribute는 `type name [PK] [FK] [UNIQUE] [NOT NULL]`, relationship은 cardinality를 생략하지 않고 명시한다.
+- 2개 이상 ordered columns가 직접 명시되면 multiline entity 안에 `PRIMARY KEY (...)`, `UNIQUE (...)`, `FOREIGN KEY (...) REFERENCES Entity(...)`를 source column order 그대로 쓴다.
+- Composite FK의 local columns, target entity, target columns는 DDL·ORM table constraint의 직접 evidence가 모두 있을 때만 표시한다. Field/index 이름이나 같은 이름의 column 집합으로 mapping을 완성하지 않는다.
+- Composite FK만으로 ER relationship·cardinality·business label을 추가하지 않는다. Relationship line은 별도의 direct schema contract가 있을 때만 그린다.
 - 명시 DDL·ORM schema의 attribute나 constraint가 설명 핵심이면 relationship이 없어도 단일 entity ER table을 사용할 수 있다. 존재하지 않는 relationship은 추가하지 않는다.
 - Field 이름만 있고 schema type·constraint·relation 근거가 없으면 `unknown` attribute를 채운 ER table을 만들지 말고 text-only로 evidence gap을 설명한다.
 - FK marker는 표시 metadata로만 사용한다. Source에서 참조 target·integrity가 확인되지 않았다면 relationship을 추론해 추가하지 않는다.
@@ -68,7 +71,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - ER relationship label도 evidence가 필요하다. DDL의 `REFERENCES`만 확인되면 `references`처럼 source에 있는 중립 용어를 사용하고, `owns`, `has`, `places` 같은 business verb를 만들지 않는다.
 - Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK/UNIQUE/NOT NULL=DDL·ORM schema constraint, cardinality=명시 schema/contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
-- 현재 버전은 class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
+- 현재 버전은 named constraint, DEFAULT/CHECK/action, inline table constraint, class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
 
 문법이 필요하면 [references/grammar.md](references/grammar.md)를 읽는다. 설명 관점과 예시가 필요하면 [references/developer-lenses.md](references/developer-lenses.md)를 읽는다.
 

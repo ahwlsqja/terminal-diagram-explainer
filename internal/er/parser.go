@@ -38,6 +38,18 @@ type pendingRelationship struct {
 	label        string
 }
 
+type pendingTableConstraint struct {
+	entity            int
+	kind              TableConstraintKind
+	columns           []string
+	columnSpans       []int
+	referenceID       string
+	referenceCols     []string
+	referenceSpans    []int
+	referenceIDColumn int
+	line              sourceLine
+}
+
 func Parse(source string, limits Limits) (*Diagram, error) {
 	if err := validateLimits(limits); err != nil {
 		return nil, err
@@ -67,6 +79,7 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	entityIndices := make(map[string]int)
 	entityLabels := make(map[string]struct{})
 	pending := make([]pendingRelationship, 0)
+	pendingConstraints := make([]pendingTableConstraint, 0)
 	headerFound := false
 	currentEntity := -1
 	currentOpenLine, currentOpenColumn := 0, 0
@@ -87,6 +100,17 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 		if currentEntity >= 0 {
 			if line.text == "}" {
 				currentEntity = -1
+				continue
+			}
+			if isTableConstraintCandidate(line.text) {
+				if len(pendingConstraints) >= limits.MaxTableConstraints || len(diagram.Entities[currentEntity].TableConstraints)+pendingConstraintCount(pendingConstraints, currentEntity) >= limits.MaxTableConstraintsPerEntity {
+					return nil, parseError(line, 1, "table constraint 수 제한 초과")
+				}
+				constraint, err := parseTableConstraint(line, currentEntity, limits)
+				if err != nil {
+					return nil, err
+				}
+				pendingConstraints = append(pendingConstraints, constraint)
 				continue
 			}
 			attribute, err := parseAttribute(line, limits)
@@ -169,11 +193,53 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 			Label: relation.label,
 		})
 	}
+	for _, pendingConstraint := range pendingConstraints {
+		entity := &diagram.Entities[pendingConstraint.entity]
+		indices := make([]int, len(pendingConstraint.columns))
+		for index, name := range pendingConstraint.columns {
+			attributeIndex := findAttribute(entity.Attributes, name)
+			if attributeIndex < 0 {
+				return nil, parseError(pendingConstraint.line, pendingConstraint.columnSpans[index], fmt.Sprintf("선언되지 않은 attribute %s", name))
+			}
+			indices[index] = attributeIndex
+		}
+		constraint := TableConstraint{Kind: pendingConstraint.kind, Columns: indices}
+		if pendingConstraint.kind == CompositePrimaryKey {
+			if hasTablePrimaryKey(entity.TableConstraints) {
+				return nil, parseError(pendingConstraint.line, 1, "table PRIMARY KEY가 중복됨")
+			}
+			for _, attribute := range entity.Attributes {
+				if attribute.Key&PrimaryKey != 0 {
+					return nil, parseError(pendingConstraint.line, 1, "attribute PK와 table PRIMARY KEY를 함께 사용할 수 없음")
+				}
+			}
+		}
+		if pendingConstraint.kind == CompositeForeignKey {
+			target := entityIndices[pendingConstraint.referenceID]
+			if _, exists := entityIndices[pendingConstraint.referenceID]; !exists {
+				return nil, parseError(pendingConstraint.line, pendingConstraint.referenceIDColumn, fmt.Sprintf("선언되지 않은 entity %s", pendingConstraint.referenceID))
+			}
+			targetEntity := diagram.Entities[target]
+			referenceIndices := make([]int, len(pendingConstraint.referenceCols))
+			for index, name := range pendingConstraint.referenceCols {
+				attributeIndex := findAttribute(targetEntity.Attributes, name)
+				if attributeIndex < 0 {
+					return nil, parseError(pendingConstraint.line, pendingConstraint.referenceSpans[index], fmt.Sprintf("선언되지 않은 attribute %s", name))
+				}
+				referenceIndices[index] = attributeIndex
+			}
+			if len(indices) != len(referenceIndices) {
+				return nil, parseError(pendingConstraint.line, pendingConstraint.referenceIDColumn, "FOREIGN KEY column 수가 REFERENCES와 다름")
+			}
+			constraint.Reference = &ForeignReference{Entity: target, Columns: referenceIndices}
+		}
+		entity.TableConstraints = append(entity.TableConstraints, constraint)
+	}
 	return diagram, nil
 }
 
 func validateLimits(limits Limits) error {
-	if limits.MaxSourceBytes <= 0 || limits.MaxLines <= 0 || limits.MaxEntities <= 0 || limits.MaxRelationships <= 0 || limits.MaxAttributes <= 0 || limits.MaxAttributesPerEntity <= 0 || limits.MaxIDBytes <= 0 || limits.MaxLabelCells <= 0 {
+	if limits.MaxSourceBytes <= 0 || limits.MaxLines <= 0 || limits.MaxEntities <= 0 || limits.MaxRelationships <= 0 || limits.MaxAttributes <= 0 || limits.MaxAttributesPerEntity <= 0 || limits.MaxTableConstraints <= 0 || limits.MaxTableConstraintsPerEntity <= 0 || limits.MaxTableConstraintColumns <= 0 || limits.MaxTableConstraintCells <= 0 || limits.MaxIDBytes <= 0 || limits.MaxLabelCells <= 0 {
 		return &ParseError{Line: 1, Column: 1, Message: "모든 parser 제한은 양수여야 함"}
 	}
 	return nil
@@ -409,6 +475,215 @@ func appendAttribute(diagram *Diagram, entityIndex int, attribute Attribute, lim
 	entity.Attributes = append(entity.Attributes, attribute)
 	*total++
 	return nil
+}
+
+func pendingConstraintCount(constraints []pendingTableConstraint, entity int) int {
+	count := 0
+	for _, constraint := range constraints {
+		if constraint.entity == entity {
+			count++
+		}
+	}
+	return count
+}
+
+func findAttribute(attributes []Attribute, name string) int {
+	for index, attribute := range attributes {
+		if attribute.Name == name {
+			return index
+		}
+	}
+	return -1
+}
+
+func hasTablePrimaryKey(constraints []TableConstraint) bool {
+	for _, constraint := range constraints {
+		if constraint.Kind == CompositePrimaryKey {
+			return true
+		}
+	}
+	return false
+}
+
+func isTableConstraintCandidate(text string) bool {
+	return hasLeadingTableKeyword(text, "PRIMARY") || hasLeadingTableKeyword(text, "UNIQUE") || hasLeadingTableKeyword(text, "FOREIGN")
+}
+
+func hasLeadingTableKeyword(text, keyword string) bool {
+	if !strings.HasPrefix(text, keyword) {
+		return false
+	}
+	if len(text) == len(keyword) {
+		return true
+	}
+	next := text[len(keyword)]
+	return next == ' ' || next == '\t' || next == '('
+}
+
+// parseTableConstraint는 SQL의 작은, 의도적으로 제한된 복합 제약 부분집합만 받는다.
+func parseTableConstraint(line sourceLine, entity int, limits Limits) (pendingTableConstraint, error) {
+	p := tableConstraintParser{text: line.text}
+	constraint := pendingTableConstraint{entity: entity, line: line}
+	if p.keyword("PRIMARY") {
+		if !p.requiredSpace() || !p.keyword("KEY") {
+			return constraint, parseError(line, p.column(), "PRIMARY KEY 문법이 필요함")
+		}
+		constraint.kind = CompositePrimaryKey
+		columns, spans, err := p.columns(limits)
+		if err != nil {
+			return constraint, parseError(line, p.column(), err.Error())
+		}
+		constraint.columns, constraint.columnSpans = columns, spans
+	} else if p.keyword("UNIQUE") {
+		constraint.kind = CompositeUnique
+		columns, spans, err := p.columns(limits)
+		if err != nil {
+			return constraint, parseError(line, p.column(), err.Error())
+		}
+		constraint.columns, constraint.columnSpans = columns, spans
+	} else if p.keyword("FOREIGN") {
+		if !p.requiredSpace() || !p.keyword("KEY") {
+			return constraint, parseError(line, p.column(), "FOREIGN KEY 문법이 필요함")
+		}
+		constraint.kind = CompositeForeignKey
+		columns, spans, err := p.columns(limits)
+		if err != nil {
+			return constraint, parseError(line, p.column(), err.Error())
+		}
+		constraint.columns, constraint.columnSpans = columns, spans
+		if !p.requiredSpace() || !p.keyword("REFERENCES") || !p.requiredSpace() {
+			return constraint, parseError(line, p.column(), "REFERENCES 문법이 필요함")
+		}
+		id, idColumn := p.identifier(limits)
+		if id == "" {
+			return constraint, parseError(line, p.column(), "REFERENCES entity ID가 필요함")
+		}
+		constraint.referenceID, constraint.referenceIDColumn = id, idColumn
+		references, referenceSpans, err := p.columns(limits)
+		if err != nil {
+			return constraint, parseError(line, p.column(), err.Error())
+		}
+		constraint.referenceCols, constraint.referenceSpans = references, referenceSpans
+	} else {
+		return constraint, parseError(line, 1, "지원하지 않는 table constraint")
+	}
+	p.space()
+	if !p.done() {
+		return constraint, parseError(line, p.column(), "table constraint 뒤의 text는 허용하지 않음")
+	}
+	if constraint.kind == CompositeForeignKey && len(constraint.columns) != len(constraint.referenceCols) {
+		return constraint, parseError(line, constraint.referenceIDColumn, "FOREIGN KEY column 수가 REFERENCES와 다름")
+	}
+	formatted := formatPendingConstraint(constraint)
+	if err := validateText(formatted, limits.MaxTableConstraintCells); err != nil {
+		return constraint, parseError(line, 1, err.Error())
+	}
+	return constraint, nil
+}
+
+func formatPendingConstraint(constraint pendingTableConstraint) string {
+	columns := strings.Join(constraint.columns, ", ")
+	switch constraint.kind {
+	case CompositePrimaryKey:
+		return "PRIMARY KEY (" + columns + ")"
+	case CompositeUnique:
+		return "UNIQUE (" + columns + ")"
+	default:
+		return "FOREIGN KEY (" + columns + ") REFERENCES " + constraint.referenceID + "(" + strings.Join(constraint.referenceCols, ", ") + ")"
+	}
+}
+
+type tableConstraintParser struct {
+	text   string
+	offset int
+}
+
+func (p *tableConstraintParser) done() bool {
+	return p.offset == len(p.text)
+}
+
+func (p *tableConstraintParser) column() int {
+	return p.offset + 1
+}
+
+func (p *tableConstraintParser) space() {
+	for p.offset < len(p.text) && (p.text[p.offset] == ' ' || p.text[p.offset] == '\t') {
+		p.offset++
+	}
+}
+
+func (p *tableConstraintParser) requiredSpace() bool {
+	start := p.offset
+	p.space()
+	return p.offset > start
+}
+
+func (p *tableConstraintParser) keyword(keyword string) bool {
+	if !strings.HasPrefix(p.text[p.offset:], keyword) {
+		return false
+	}
+	p.offset += len(keyword)
+	return true
+}
+
+func (p *tableConstraintParser) identifier(limits Limits) (string, int) {
+	p.space()
+	start := p.offset
+	if start >= len(p.text) || !isIDStart(p.text[start]) {
+		return "", start + 1
+	}
+	p.offset++
+	for p.offset < len(p.text) && isIDPart(p.text[p.offset]) {
+		p.offset++
+	}
+	id := p.text[start:p.offset]
+	if validateID(id, limits.MaxIDBytes) != nil {
+		return "", start + 1
+	}
+	return id, start + 1
+}
+
+func (p *tableConstraintParser) columns(limits Limits) ([]string, []int, error) {
+	p.space()
+	if p.offset >= len(p.text) || p.text[p.offset] != '(' {
+		return nil, nil, fmt.Errorf("column list가 필요함")
+	}
+	p.offset++
+	columns := make([]string, 0, min(limits.MaxTableConstraintColumns, 8))
+	spans := make([]int, 0, min(limits.MaxTableConstraintColumns, 8))
+	for {
+		id, span := p.identifier(limits)
+		if id == "" {
+			return nil, nil, fmt.Errorf("column ID가 필요함")
+		}
+		for _, existing := range columns {
+			if existing == id {
+				p.offset = span - 1
+				return nil, nil, fmt.Errorf("column %s가 중복됨", id)
+			}
+		}
+		columns = append(columns, id)
+		spans = append(spans, span)
+		if len(columns) > limits.MaxTableConstraintColumns {
+			return nil, nil, fmt.Errorf("constraint column 수 제한 초과")
+		}
+		p.space()
+		if p.offset >= len(p.text) {
+			return nil, nil, fmt.Errorf("column list를 닫는 `)`가 필요함")
+		}
+		if p.text[p.offset] == ')' {
+			p.offset++
+			break
+		}
+		if p.text[p.offset] != ',' {
+			return nil, nil, fmt.Errorf("column 사이에는 `,`가 필요함")
+		}
+		p.offset++
+	}
+	if len(columns) < 2 {
+		return nil, nil, fmt.Errorf("table constraint는 두 column 이상이어야 함")
+	}
+	return columns, spans, nil
 }
 
 func parseRelationship(line sourceLine, limits Limits) (pendingRelationship, error) {

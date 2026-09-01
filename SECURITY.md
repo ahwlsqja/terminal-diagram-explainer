@@ -38,6 +38,8 @@
 - ER renderer는 entity/attribute/relationship/cardinality/key bit를 독립 재검증하고 endpoint마다 source-order port와 rail을 사전 배정합니다.
 - PK/FK는 표시 metadata이며 FK target이나 referential integrity를 자동 추론하지 않습니다.
 - UNIQUE/NOT NULL은 별도 constraint bit로 보존하고 parser와 renderer가 공유 formatter로 정규화합니다. PK나 field 이름에서 constraint를 자동 추론하지 않습니다.
+- Composite table constraint는 attribute index와 FK target entity/attribute index로 보존하고 parser EOF 및 renderer 진입에서 독립 재검증합니다. FK는 relationship/port/cardinality를 만들지 않습니다.
+- Table constraints는 64 total, entity당 8, 2~8 columns, 기본 240-cell canvas에 맞춘 236-cell text hard limit을 적용합니다.
 - ER source는 comment와 token separator를 포함해 ASCII space·tab·LF/CRLF 외 Unicode whitespace와 terminal control·format/bidi·ZWJ·variation selector를 parser 진입 시 거부합니다.
 - Self·duplicate relationship은 별도 ports/rails를 사용하고 label은 bounded `relationships:` legend에만 표시합니다.
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.

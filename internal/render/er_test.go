@@ -3,6 +3,7 @@ package render
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"testing"
 
@@ -148,6 +149,136 @@ func TestERDirectValidationAndBounds(t *testing.T) {
 	}
 	if output, err := ER(valid, Options{MaxWidth: 2, MaxHeight: 2}); !errors.Is(err, ErrOutputBounds) || output != "" {
 		t.Fatalf("bounds output=%q err=%v", output, err)
+	}
+}
+
+func TestERRendersCompositeConstraintsWithInternalDividerAndNoRelationship(t *testing.T) {
+	diagram, err := er.Parse(`erDiagram
+A {
+  string tenant_id
+  string id
+  string email
+  PRIMARY KEY (tenant_id, id)
+  UNIQUE (tenant_id, email)
+}`, er.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	output, err := ER(diagram, Options{ASCII: true, MaxWidth: 128, MaxHeight: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(output, "relationships:") || !strings.Contains(output, "PRIMARY KEY (tenant_id, id)") || !strings.Contains(output, "UNIQUE (tenant_id, email)") {
+		t.Fatalf("output:\n%s", output)
+	}
+	if !strings.Contains(output, "|-----------------------------|") {
+		t.Fatalf("internal divider missing:\n%s", output)
+	}
+	assertEROutputBounds(t, output, 128, 32)
+	for run := 0; run < 256; run++ {
+		got, renderErr := ER(diagram, Options{ASCII: true, MaxWidth: 128, MaxHeight: 32})
+		if renderErr != nil || got != output {
+			t.Fatalf("run=%d err=%v", run, renderErr)
+		}
+	}
+	rows := strings.Split(output, "\n")
+	width := 0
+	for _, row := range rows {
+		rowWidth, widthErr := textcell.Width(row)
+		if widthErr != nil {
+			t.Fatal(widthErr)
+		}
+		width = max(width, rowWidth)
+	}
+	if got, boundErr := ER(diagram, Options{ASCII: true, MaxWidth: width, MaxHeight: len(rows)}); boundErr != nil || got != output {
+		t.Fatalf("exact bounds output=%q err=%v", got, boundErr)
+	}
+	for _, options := range []Options{{ASCII: true, MaxWidth: width - 1, MaxHeight: len(rows)}, {ASCII: true, MaxWidth: width, MaxHeight: len(rows) - 1}} {
+		if got, boundErr := ER(diagram, options); got != "" || !errors.Is(boundErr, ErrOutputBounds) {
+			t.Fatalf("tight bounds options=%+v output=%q err=%v", options, got, boundErr)
+		}
+	}
+}
+
+func TestERRejectsHostileCompositeConstraintAST(t *testing.T) {
+	base := er.Entity{ID: "A", Label: "A", Attributes: []er.Attribute{{Type: "string", Name: "a"}, {Type: "string", Name: "b"}}}
+	invalids := []er.TableConstraint{
+		{Kind: 0, Columns: []int{0, 1}},
+		{Kind: er.TableConstraintKind(99), Columns: []int{0, 1}},
+		{Kind: er.CompositeUnique, Columns: []int{-1, 1}},
+		{Kind: er.CompositeUnique, Columns: []int{0, 0}},
+		{Kind: er.CompositeUnique, Columns: []int{0, 2}},
+		{Kind: er.CompositeUnique, Columns: []int{0, 1}, Reference: &er.ForeignReference{}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: -1, Columns: []int{0, 1}}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 1, Columns: []int{0, 1}}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 0, Columns: []int{0}}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 0, Columns: []int{0, 0}}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 0, Columns: []int{-1, 1}}},
+		{Kind: er.CompositeForeignKey, Columns: []int{0, 1}, Reference: &er.ForeignReference{Entity: 0, Columns: []int{0, 2}}},
+	}
+	for _, constraint := range invalids {
+		entity := base
+		entity.TableConstraints = []er.TableConstraint{constraint}
+		output, err := ER(&er.Diagram{Entities: []er.Entity{entity}}, Options{MaxWidth: 128, MaxHeight: 32})
+		if output != "" || !errors.Is(err, ErrInvalidER) {
+			t.Fatalf("constraint=%+v output=%q err=%v", constraint, output, err)
+		}
+	}
+}
+
+func TestERRejectsCompositeConstraintCountAndPrimaryKeyConflicts(t *testing.T) {
+	attributes := []er.Attribute{{Type: "string", Name: "a"}, {Type: "string", Name: "b"}}
+	tooManyPerEntity := er.Entity{ID: "A", Label: "A", Attributes: attributes}
+	for index := 0; index < 9; index++ {
+		tooManyPerEntity.TableConstraints = append(tooManyPerEntity.TableConstraints, er.TableConstraint{Kind: er.CompositeUnique, Columns: []int{0, 1}})
+	}
+	if output, err := ER(&er.Diagram{Entities: []er.Entity{tooManyPerEntity}}, Options{MaxWidth: 512, MaxHeight: 512}); output != "" || !errors.Is(err, ErrInvalidER) {
+		t.Fatalf("per-entity limit output=%q err=%v", output, err)
+	}
+
+	diagram := &er.Diagram{Entities: make([]er.Entity, 9)}
+	for entityIndex := range diagram.Entities {
+		entity := er.Entity{ID: fmt.Sprintf("E%d", entityIndex), Label: fmt.Sprintf("E%d", entityIndex), Attributes: attributes}
+		count := 8
+		if entityIndex == 8 {
+			count = 1
+		}
+		for index := 0; index < count; index++ {
+			entity.TableConstraints = append(entity.TableConstraints, er.TableConstraint{Kind: er.CompositeUnique, Columns: []int{0, 1}})
+		}
+		diagram.Entities[entityIndex] = entity
+	}
+	if output, err := ER(diagram, Options{MaxWidth: 512, MaxHeight: 512}); output != "" || !errors.Is(err, ErrInvalidER) {
+		t.Fatalf("total limit output=%q err=%v", output, err)
+	}
+
+	for _, entity := range []er.Entity{
+		{ID: "A", Label: "A", Attributes: []er.Attribute{{Type: "string", Name: "a", Key: er.PrimaryKey}, {Type: "string", Name: "b"}}, TableConstraints: []er.TableConstraint{{Kind: er.CompositePrimaryKey, Columns: []int{0, 1}}}},
+		{ID: "A", Label: "A", Attributes: attributes, TableConstraints: []er.TableConstraint{{Kind: er.CompositePrimaryKey, Columns: []int{0, 1}}, {Kind: er.CompositePrimaryKey, Columns: []int{1, 0}}}},
+	} {
+		if output, err := ER(&er.Diagram{Entities: []er.Entity{entity}}, Options{MaxWidth: 512, MaxHeight: 512}); output != "" || !errors.Is(err, ErrInvalidER) {
+			t.Fatalf("primary key conflict output=%q err=%v", output, err)
+		}
+	}
+}
+
+func TestERCompositeRenderingDoesNotMutateConstraintSlices(t *testing.T) {
+	columns := []int{1, 0}
+	references := []int{0, 1}
+	diagram := &er.Diagram{Entities: []er.Entity{{
+		ID: "A", Label: "A", Attributes: []er.Attribute{{Type: "string", Name: "a"}, {Type: "string", Name: "b"}},
+		TableConstraints: []er.TableConstraint{{Kind: er.CompositeForeignKey, Columns: columns, Reference: &er.ForeignReference{Entity: 0, Columns: references}}},
+	}}}
+	wantColumns := append([]int(nil), columns...)
+	wantReferences := append([]int(nil), references...)
+	first, err := ER(diagram, Options{MaxWidth: 160, MaxHeight: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := ER(diagram, Options{MaxWidth: 160, MaxHeight: 32})
+	if err != nil || first != second || !slices.Equal(columns, wantColumns) || !slices.Equal(references, wantReferences) {
+		t.Fatalf("render mutated input: first=%q second=%q columns=%v refs=%v err=%v", first, second, columns, references, err)
 	}
 }
 
