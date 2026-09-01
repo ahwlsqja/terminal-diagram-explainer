@@ -12,6 +12,7 @@ import (
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/render"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/sequence"
+	"github.com/ahwlsqja/terminal-diagram-explainer/internal/state"
 )
 
 type factDefinition struct {
@@ -64,7 +65,7 @@ func TestEvaluationCorpusSeparatesPromptsFromHiddenOracles(t *testing.T) {
 		oracleByID[oracle.ID] = oracle
 		categories[oracle.Category] = struct{}{}
 	}
-	for _, category := range []string{"strong-par", "strong-activation", "strong-subgraph", "ssot", "ordering", "adversarial", "schema", "security", "security-redaction"} {
+	for _, category := range []string{"strong-par", "strong-activation", "strong-subgraph", "ssot", "ordering", "adversarial", "schema", "state", "security", "security-redaction"} {
 		if _, exists := categories[category]; !exists {
 			t.Fatalf("coverage category %q missing", category)
 		}
@@ -135,7 +136,7 @@ func validateReference(t *testing.T, oracle oracleDefinition) {
 		}
 	}
 	asciiOutput, _, asciiErr := renderReferenceWithOptions(oracle.ReferenceSource, render.Options{ASCII: true, MaxWidth: 240, MaxHeight: 200})
-	if asciiErr != nil || asciiOutput == "" || strings.ContainsAny(asciiOutput, "┌┐└┘╭╮╰╯╔╗╚╝─│┄┊┼▶◀▼═║") {
+	if asciiErr != nil || asciiOutput == "" || strings.ContainsAny(asciiOutput, "┌┐└┘╭╮╰╯╔╗╚╝─│┄┊┼▶◀▼▲═║●◎") {
 		t.Fatalf("ASCII output=%q err=%v", asciiOutput, asciiErr)
 	}
 }
@@ -183,6 +184,8 @@ func referenceKind(source string) string {
 		return "flow"
 	case strings.HasPrefix(trimmed, "sequenceDiagram"):
 		return "sequence"
+	case strings.HasPrefix(trimmed, "stateDiagram-v2"):
+		return "state"
 	case strings.HasPrefix(trimmed, "erDiagram"):
 		return "er"
 	default:
@@ -213,6 +216,13 @@ func renderReferenceWithOptions(source string, options render.Options) (string, 
 		}
 		output, err := render.ER(diagram, options)
 		return output, len(diagram.Entities), err
+	case "state":
+		diagram, err := state.Parse(source, state.DefaultLimits())
+		if err != nil {
+			return "", 0, err
+		}
+		output, err := render.State(diagram, options)
+		return output, len(diagram.States), err
 	default:
 		return "", 0, nil
 	}

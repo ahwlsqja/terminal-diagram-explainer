@@ -13,10 +13,11 @@ import (
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/render"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/sequence"
+	"github.com/ahwlsqja/terminal-diagram-explainer/internal/state"
 )
 
 const (
-	Version       = "0.12.0"
+	Version       = "0.13.0"
 	MaxInputBytes = 256 * 1024
 )
 
@@ -81,7 +82,14 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	options := render.DefaultOptions()
 	options.ASCII = *ascii
 	var output string
-	if isSequenceSource(string(source)) {
+	if isStateSource(string(source)) {
+		diagram, parseErr := state.Parse(string(source), state.DefaultLimits())
+		if parseErr != nil {
+			fmt.Fprintln(stderr, parseErr)
+			return 2
+		}
+		output, err = render.State(diagram, options)
+	} else if isSequenceSource(string(source)) {
 		diagram, parseErr := sequence.Parse(string(source), sequence.DefaultLimits())
 		if parseErr != nil {
 			fmt.Fprintln(stderr, parseErr)
@@ -116,6 +124,17 @@ func Run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		return 1
 	}
 	return 0
+}
+
+func isStateSource(source string) bool {
+	for _, raw := range strings.Split(source, "\n") {
+		line := strings.TrimSpace(raw)
+		if line == "" || strings.HasPrefix(line, "%%") {
+			continue
+		}
+		return line == "stateDiagram-v2"
+	}
+	return false
 }
 
 func isERSource(source string) bool {

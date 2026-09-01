@@ -1,6 +1,6 @@
 # 입력·실행 경계
 
-이 도구는 Codex가 생성한 작은 설명용 Flowchart와 Sequence Diagram만 처리합니다. 임의 Mermaid 호환 renderer가 아닙니다.
+이 도구는 Codex가 생성한 작은 설명용 Flowchart, Sequence, ER, State Diagram subset만 처리합니다. 임의 Mermaid 호환 renderer가 아닙니다.
 
 ## 불변식
 
@@ -40,6 +40,9 @@
 - UNIQUE/NOT NULL은 별도 constraint bit로 보존하고 parser와 renderer가 공유 formatter로 정규화합니다. PK나 field 이름에서 constraint를 자동 추론하지 않습니다.
 - Composite table constraint는 attribute index와 FK target entity/attribute index로 보존하고 parser EOF 및 renderer 진입에서 독립 재검증합니다. FK는 relationship/port/cardinality를 만들지 않습니다.
 - Table constraints는 64 total, entity당 8, 2~8 columns, 기본 240-cell canvas에 맞춘 236-cell text hard limit을 적용합니다.
+- State parser는 32 states, 64 transitions, ID 64 bytes, canonical state/transition label 96 cells hard limit과 exact initial invariant를 적용합니다.
+- State renderer는 direct endpoint kind/index·pseudo orientation·duplicate semantics를 재검증하고 concrete transition마다 bounded connector lane을 예약합니다.
+- State cycle/self feedback은 source-order reachability로 분류하며 declaration order를 cycle 의미로 사용하지 않습니다.
 - ER source는 comment와 token separator를 포함해 ASCII space·tab·LF/CRLF 외 Unicode whitespace와 terminal control·format/bidi·ZWJ·variation selector를 parser 진입 시 거부합니다.
 - Self·duplicate relationship은 별도 ports/rails를 사용하고 label은 bounded `relationships:` legend에만 표시합니다.
 - Long-hop Sequence label row에서는 label 가독성을 위해 중간 lifeline이 일시적으로 끊길 수 있지만, arrow row의 junction과 다음 time row의 lifeline은 보존합니다.

@@ -266,6 +266,41 @@ func TestValidateResultRejectsSensitiveLiteralInNarrativeOrRenderedLabel(t *test
 	}
 }
 
+func TestValidateStateResultUsesParsedTransitionsNotComments(t *testing.T) {
+	root := repositoryRoot(t)
+	corpus, err := LoadCorpus(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := validWorkerStateResult(t, root)
+	if err := corpus.Validate(result); err != nil {
+		t.Fatalf("Validate(state) error = %v", err)
+	}
+
+	missing := cloneResult(t, result)
+	transition := "Committing --> Backoff : transient failure [attempt below 3]"
+	missing.DiagramSource = strings.Replace(missing.DiagramSource, transition+"\n", "", 1) + "\n%% " + transition
+	_, missing.Renderer, _, err = Replay(missing.DiagramSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	missing.FinalAnswer = "확인된 state transition만 설명한다.\n" + missing.Renderer.Stdout
+	if err := corpus.Validate(missing); err == nil || !strings.Contains(err.Error(), "필수 표기") {
+		t.Fatalf("comment spoof error=%v", err)
+	}
+
+	forbidden := cloneResult(t, result)
+	forbidden.DiagramSource += "\nCommitting --> Backoff : timeout"
+	_, forbidden.Renderer, _, err = Replay(forbidden.DiagramSource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	forbidden.FinalAnswer = "확인된 state transition만 설명한다.\n" + forbidden.Renderer.Stdout
+	if err := corpus.Validate(forbidden); err == nil || !strings.Contains(err.Error(), "금지 주장") {
+		t.Fatalf("forbidden state label error=%v", err)
+	}
+}
+
 func TestContainsFoldCollapsesUnicodeWhitespace(t *testing.T) {
 	if !containsFold("unique\u00a0email constraint", "unique email") {
 		t.Fatal("NBSP whitespace 우회를 탐지해야 함")
@@ -332,6 +367,27 @@ func validSensitiveLogRedactionResult(t *testing.T, root string) EvaluationResul
 			{Text: "credential과 email은 [REDACTED]로만 표현한다.", FactIDs: []string{"F03"}},
 		},
 		FinalAnswer: "실제 runtime은 Handler에서 Verifier로 가는 두 단계다. 민감 값은 [REDACTED] 처리한다.\n" + renderer.Stdout,
+	}
+}
+
+func validWorkerStateResult(t *testing.T, root string) EvaluationResult {
+	t.Helper()
+	source := oracleSource(t, root, "worker-retry-dlq")
+	_, renderer, _, err := Replay(source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return EvaluationResult{
+		CaseID:        "worker-retry-dlq",
+		DiagramSource: source,
+		Renderer:      renderer,
+		Claims: []Claim{
+			{Text: "Validating에서 invalid면 Rejected로 전이해 종료한다.", FactIDs: []string{"F01"}},
+			{Text: "Valid event는 Committing으로 전이한다.", FactIDs: []string{"F02"}},
+			{Text: "Transient failure는 guard 아래 Backoff를 거쳐 retry한다.", FactIDs: []string{"F03"}},
+			{Text: "Commit 또는 DLQ publish 성공은 Acked terminal로 전이한다.", FactIDs: []string{"F04"}},
+		},
+		FinalAnswer: "확인된 state transition만 설명한다.\n" + renderer.Stdout,
 	}
 }
 

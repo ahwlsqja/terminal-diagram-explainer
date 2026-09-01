@@ -63,6 +63,12 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 2개 이상 ordered columns가 직접 명시되면 multiline entity 안에 `PRIMARY KEY (...)`, `UNIQUE (...)`, `FOREIGN KEY (...) REFERENCES Entity(...)`를 source column order 그대로 쓴다.
 - Composite FK의 local columns, target entity, target columns는 DDL·ORM table constraint의 직접 evidence가 모두 있을 때만 표시한다. Field/index 이름이나 같은 이름의 column 집합으로 mapping을 완성하지 않는다.
 - Composite FK만으로 ER relationship·cardinality·business label을 추가하지 않는다. Relationship line은 별도의 direct schema contract가 있을 때만 그린다.
+- Lifecycle의 explicit states와 source→target transition이 핵심이면 `stateDiagram-v2`를 사용한다. Status enum·상수 목록만 있으면 state 후보일 뿐 transition evidence가 아니므로 state diagram을 만들지 않는다.
+- 내부 state ledger에서 각 box를 explicit state fact에 연결하고 각 edge를 source state·target state·event fact에 연결한다. Event, method, command, result 단어를 별도 state로 승격하지 않는다.
+- `DLQ -- publish succeeds --> Acked`처럼 event가 두 state 사이에 주어지면 `DLQ --> Acked : publish succeeds`로 표시한다. `publish succeeds`나 `published`를 state로 만들지 않는다.
+- Initial은 bootstrap contract, final은 terminal contract가 직접 확인될 때만 `[*]`로 표시한다. `Done`, `Failed`, `isTerminal`, `transitionToRetry` 같은 이름은 증거가 아니다.
+- Event는 해당 transition을 발생시키는 trigger가, guard는 그 transition을 실제로 제어하는 조건이 source에 있을 때만 붙인다. Alias도 명시 display mapping이 있을 때만 사용한다.
+- `retry`, `timeout`, `compensate`라는 event label을 source에서 확인해 보존할 수는 있지만 attempt·deadline·backoff·보상 보장을 일반 관례로 확장하지 않는다.
 - 명시 DDL·ORM schema의 attribute나 constraint가 설명 핵심이면 relationship이 없어도 단일 entity ER table을 사용할 수 있다. 존재하지 않는 relationship은 추가하지 않는다.
 - Field 이름만 있고 schema type·constraint·relation 근거가 없으면 `unknown` attribute를 채운 ER table을 만들지 말고 text-only로 evidence gap을 설명한다.
 - FK marker는 표시 metadata로만 사용한다. Source에서 참조 target·integrity가 확인되지 않았다면 relationship을 추론해 추가하지 않는다.
@@ -71,7 +77,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - ER relationship label도 evidence가 필요하다. DDL의 `REFERENCES`만 확인되면 `references`처럼 source에 있는 중립 용어를 사용하고, `owns`, `has`, `places` 같은 business verb를 만들지 않는다.
 - Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK/UNIQUE/NOT NULL=DDL·ORM schema constraint, cardinality=명시 schema/contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
-- 현재 버전은 named constraint, DEFAULT/CHECK/action, inline table constraint, class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
+- 현재 버전은 named constraint, DEFAULT/CHECK/action, inline table constraint, state composite/fork/join/history/note/style, class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
 
 문법이 필요하면 [references/grammar.md](references/grammar.md)를 읽는다. 설명 관점과 예시가 필요하면 [references/developer-lenses.md](references/developer-lenses.md)를 읽는다.
 

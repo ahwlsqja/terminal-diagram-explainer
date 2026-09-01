@@ -13,6 +13,7 @@ import (
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/er"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/sequence"
+	"github.com/ahwlsqja/terminal-diagram-explainer/internal/state"
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/textcell"
 )
 
@@ -284,6 +285,36 @@ func analyze(source string) (sourceAnalysis, error) {
 			}
 		}
 		return sourceAnalysis{kind: "sequence", elements: len(diagram.Participants), features: features}, nil
+	}
+	if header == "stateDiagram-v2" {
+		diagram, err := state.Parse(source, state.DefaultLimits())
+		if err != nil {
+			return sourceAnalysis{}, err
+		}
+		features := map[string]bool{"stateDiagram-v2": true}
+		for _, current := range diagram.States {
+			features[current.ID] = true
+			features[strings.ToLower(current.Label)] = true
+		}
+		for _, transition := range diagram.Transitions {
+			if transition.From.Kind == state.Initial || transition.To.Kind == state.Final {
+				features["[*]"] = true
+			}
+			if transition.From.Kind != state.StateRef || transition.To.Kind != state.StateRef {
+				continue
+			}
+			text := diagram.States[transition.From.Index].ID + " --> " + diagram.States[transition.To.Index].ID
+			if transition.Label() != "" {
+				text += " : " + transition.Label()
+				features[transition.Label()] = true
+				features[transition.Event] = true
+				if transition.Guard != "" {
+					features["["+transition.Guard+"]"] = true
+				}
+			}
+			features[text] = true
+		}
+		return sourceAnalysis{kind: "state", elements: len(diagram.States), features: features}, nil
 	}
 	if header == "erDiagram" {
 		diagram, err := er.Parse(source, er.DefaultLimits())

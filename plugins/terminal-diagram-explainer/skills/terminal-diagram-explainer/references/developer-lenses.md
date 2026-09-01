@@ -63,6 +63,10 @@ UNIQUE와 NOT NULL은 DDL·ORM schema constraint 또는 명시 schema contract�
 
 Composite PK/UNIQUE/FK는 ordered local column list를 그대로 보존한다. FK target entity와 target column list까지 직접 확인하고, column 이름이 비슷하다는 이유로 mapping이나 cardinality를 만들지 않는다.
 
+Lifecycle은 state 목록보다 transition contract를 먼저 확인한다. Source state, target state, trigger, guard, bootstrap, terminal 근거를 각각 확인하고 enum·함수 이름으로 빈칸을 채우지 않는다.
+
+Event·command·method·result는 transition label 후보이지 state 후보가 아니다. State로 명시된 명사만 box로 만들고 event를 state로 승격하지 않는다.
+
 ## Worker·비동기 처리
 
 - enqueue, ack, commit 시점을 구분한다.

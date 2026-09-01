@@ -94,6 +94,16 @@
 - Composite FK는 ordered mapping만 표시하며 relationship·cardinality·attribute marker를 추론하지 않습니다.
 - 기존 18-case positive schema와 negative name-only case를 확장해 ordered-column evidence gate를 검증합니다.
 
+## 12. State Diagram Core — 완료 (0.13.0)
+
+- 독립 `stateDiagram-v2` parser/model과 exact app dispatcher를 추가합니다.
+- Explicit state/alias, TD·LR direction, initial/final pseudo-state, event와 trailing guard를 지원합니다.
+- Exactly one initial, optional multiple finals, 32 states/64 transitions, 96-cell label hard limit을 parser와 renderer 양쪽에서 검증합니다.
+- State-to-state connector를 bounded gutter로 렌더하고 source-order greedy reachability로 cycle/self feedback을 분류합니다.
+- Forward endpoint는 EOF에서 resolve하며 undeclared state와 암묵 state 생성을 거부합니다.
+- Enum·함수·status 이름에서 transition/initial/final/guard를 추론하지 않고 fixed-18 corpus에 positive lifecycle과 negative evidence-gap을 고정합니다.
+- Composite state, fork/join/choice/history, timeout·retry·compensation 정책 의미는 다음 확장으로 남깁니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

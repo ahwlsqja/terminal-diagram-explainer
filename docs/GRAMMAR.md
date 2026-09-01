@@ -1,4 +1,4 @@
-# 0.12 문법
+# 0.13 문법
 
 ## Header
 
@@ -195,6 +195,33 @@ FOREIGN KEY (tenant_id, customer_id) REFERENCES Customer(tenant_id, id)
 - 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
 - Renderer는 attributes 다음에 table constraints를 source order로 표시하고 두 section이 모두 있으면 divider를 둡니다. Explicit relationship만 endpoint cardinality marker, source-order rails와 `relationships:` legend를 만듭니다.
 
+## State Diagrams
+
+```text
+stateDiagram-v2
+direction TD
+state "검증 중" as Validating
+state Committing
+state Backoff
+state Acked
+[*] --> Validating
+Validating --> Committing : valid
+Committing --> Backoff : transient failure [attempt below 3]
+Backoff --> Committing : retry
+Committing --> Acked : commit succeeds
+Acked --> [*]
+```
+
+- Header는 exact `stateDiagram-v2`입니다. Optional `direction TD|LR`은 header 다음, 첫 declaration/transition 전에 한 번만 허용합니다. 기본 방향은 TD입니다.
+- State declaration은 `state ID` 또는 `state "display label" as ID`입니다. ID와 display label은 각각 diagram 안에서 유일해야 합니다.
+- Declaration과 transition은 섞어 쓸 수 있으며 concrete endpoint는 EOF까지 explicit declaration이 있어야 합니다. Endpoint로 state를 자동 생성하지 않습니다.
+- Concrete transition은 `A --> B`, `A --> B : event`, `A --> B : event [guard]`입니다. Colon이 있으면 nonempty event가 필요하고 guard는 하나의 trailing nonempty bracket입니다.
+- `[*] --> State` initial은 정확히 하나 필요합니다. `State --> [*]` final은 0개 이상 허용하며 pseudo transition에는 event/guard를 붙이지 않습니다.
+- Exact duplicate transition은 거부하고 event/guard가 다른 transition은 source order로 보존합니다. Self/cycle도 명시 source order로 유지합니다.
+- 최대 32 states, 64 transitions, ID 64 bytes, state label과 canonical `event [guard]` 각각 96 cells입니다.
+- Renderer는 state box 사이에 bounded connector lane을 예약합니다. Cycle/self는 reachability로 분류해 `feedback:` legend에, 나머지는 `transitions:` legend에 source order로 표시합니다.
+- Composite/nested state, fork/join/choice/history, note/style, concurrency, timeout·retry·compensation 정책 의미는 지원하지 않습니다.
+
 ## Rejected input
 
 - invalid UTF-8
@@ -203,3 +230,4 @@ FOREIGN KEY (tenant_id, customer_id) REFERENCES Customer(tenant_id, id)
 - 렌더되는 label에서 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
 - Sequence/ER note, ER relationship attributes·inheritance·weak entity·inferred cardinality, Flow 방향 `RL`, `BT`
+- State composite/fork/join/choice/history/note/style과 exact subset 밖의 state 문법

@@ -94,3 +94,19 @@ Order[주문] {
 ER limits: 32 entities, 64 relationships, 192 attributes total and 32 per entity. Entity IDs and display labels are unique. Attributes use `type name [PK] [FK] [UNIQUE] [NOT NULL]`; marker input order is free and output canonicalizes to `PK FK UNIQUE NOT NULL type name`. Multiline blocks also support 2–8-column `PRIMARY KEY (...)`, `UNIQUE (...)`, and `FOREIGN KEY (...) REFERENCES Entity(...)`; these three leading keywords are reserved inside entity bodies. Maximum 8 per entity, 64 total, 236 cells each so the row plus table padding fits the default 240-cell canvas. Attributes render before table constraints with a divider between nonempty sections. ER syntax whitespace is limited to ASCII space, tab and LF/CRLF. Composite FK preserves ordered mapping but does not infer a relationship or cardinality. Relationship endpoints use entity IDs and explicit Mermaid-style cardinality markers. Self, duplicate and disconnected relationships/entities are retained in source order.
 
 Unsupported syntax fails rather than falling back: named `CONSTRAINT`, `DEFAULT`, `CHECK`, referential actions, inline table constraints, class/style/click, HTML/Markdown labels, Sequence/ER notes, advanced ER inheritance/weak entity/inferred cardinality, `RL`, `BT`.
+
+```text
+stateDiagram-v2
+direction TD
+state "검증 중" as Validating
+state Committing
+state Backoff
+[*] --> Validating
+Validating --> Committing : valid
+Committing --> Backoff : transient failure [attempt below 3]
+Backoff --> Committing : retry
+```
+
+State limits: 32 explicit states, 64 transitions, 64-byte ID, 96-cell display label and canonical `event [guard]`, default 240×200 output. Direction is optional exact `TD|LR` before the first state or transition. Declarations are `state ID` or `state "display label" as ID`; endpoints never create implicit states. Exactly one `[*] --> State` initial is required, while zero or more `State --> [*]` finals are allowed. Concrete transitions may be unlabeled or use `: event [guard]`; pseudo transitions cannot carry labels. State connectors use bounded lanes, and cycles/self transitions are listed under `feedback:` by reachability rather than declaration order.
+
+Unsupported State syntax fails rather than falling back: composite/nested state, fork/join/choice/history, note/style, concurrency, timeout/retry/compensation policy semantics, multiple initials, implicit states and guard-only labels.

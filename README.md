@@ -84,6 +84,29 @@ Order[주문] {
 - 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
 - Named `CONSTRAINT`, `DEFAULT`, `CHECK`, referential actions, inline table constraint, `classDef`, `style`, `click`, HTML/Markdown label, Sequence/ER note와 advanced ER semantics는 아직 명시적으로 거부합니다.
 
+```mermaid
+stateDiagram-v2
+direction TD
+state "검증 중" as Validating
+state Committing
+state Backoff
+state Acked
+[*] --> Validating
+Validating --> Committing : valid
+Committing --> Backoff : transient failure [attempt below 3]
+Backoff --> Committing : retry
+Committing --> Acked : commit succeeds
+Acked --> [*]
+```
+
+- Header는 exact `stateDiagram-v2`이며 optional `direction TD|LR`은 첫 declaration/transition 전에 한 번만 사용합니다.
+- State는 `state ID` 또는 `state "display label" as ID`로 명시 선언하며 transition endpoint가 state를 자동 생성하지 않습니다.
+- Concrete transition은 `A --> B`, `A --> B : event`, `A --> B : event [guard]`입니다. Event와 guard를 분리해 보존합니다.
+- Initial은 정확히 하나의 `[*] --> State`, final은 0개 이상의 `State --> [*]`이며 pseudo transition에는 label을 붙이지 않습니다.
+- 최대 32 states, 64 transitions, ID 64 bytes, state/transition label 96 cells입니다.
+- Self/cycle은 bounded connector와 `feedback:` legend로 표시하며 disconnected state도 source order로 보존합니다.
+- Composite/nested state, fork/join/choice/history, note/style, timeout·retry·compensation 정책 추론은 아직 지원하지 않습니다.
+
 ## 개발 검증
 
 ```bash
