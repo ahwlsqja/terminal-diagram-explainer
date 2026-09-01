@@ -212,6 +212,16 @@ func forwardDoglegCountsByRank(graph *flow.Graph, placements []placement, ranks 
 	return counts
 }
 
+func outerForwardEdgeCountsByRank(graph *flow.Graph, ranks []int, outer []bool) []int {
+	counts := make([]int, len(forwardEdgeCountsByRank(graph, ranks, outer)))
+	for edgeIndex, edge := range graph.Edges {
+		if outer[edgeIndex] && ranks[edge.To] > ranks[edge.From] {
+			counts[ranks[edge.From]]++
+		}
+	}
+	return counts
+}
+
 func forwardEdgeLaneIndex(graph *flow.Graph, placements []placement, ranks []int, outer []bool, edgeIndex int) int {
 	rank := ranks[graph.Edges[edgeIndex].From]
 	lane := 0

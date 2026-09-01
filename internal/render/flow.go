@@ -173,6 +173,10 @@ func placeTD(graph *flow.Graph, groups [][]int, widths []int, placements []place
 		}
 	}
 	doglegCounts := forwardDoglegCountsByRank(graph, placements, ranks, feedback)
+	outerCounts := outerForwardEdgeCountsByRank(graph, ranks, feedback)
+	for rank := range doglegCounts {
+		doglegCounts[rank] += outerCounts[rank]
+	}
 	y := 0
 	for rank, group := range groups {
 		for _, node := range group {

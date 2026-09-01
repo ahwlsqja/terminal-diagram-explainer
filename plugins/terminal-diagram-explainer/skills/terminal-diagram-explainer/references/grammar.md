@@ -23,9 +23,9 @@ Subgraphs form a bounded parent forest. Node and subgraph IDs share one graph-wi
 
 Cycle and self-loop edges render through an outer gutter. Their labels appear once in a bounded `feedback:` legend.
 
-Forward edges that skip an intermediate rank also use an outer gutter. Labeled routes appear once in a bounded `routed:` legend.
+Forward edges that skip an intermediate rank or form a mixed fan-out/fan-in junction use an outer gutter. Every routed edge appears once with semantic endpoint IDs in a bounded `routed:` manifest; a label is appended when present.
 
-Cross-subgraph edges use frame-safe outer corridors and place labels in the bounded `routed:` legend.
+Cross-subgraph edges stay inside their endpoints' lowest common ancestor frame and use validated descendant-frame portals. Every such edge appears in the bounded `routed:` manifest.
 
 ```text
 sequenceDiagram

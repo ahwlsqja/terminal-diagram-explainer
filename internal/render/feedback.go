@@ -34,12 +34,36 @@ func hasOuterRoutes(outer []bool) bool {
 
 func outerEdgeMask(graph *flow.Graph, plan rankPlan) []bool {
 	outer := make([]bool, len(graph.Edges))
+	mixedJunction := mixedForwardJunctionMask(graph, plan)
 	for edgeIndex, edge := range graph.Edges {
 		outer[edgeIndex] = plan.feedback[edgeIndex] ||
 			plan.ranks[edge.To] > plan.ranks[edge.From]+1 ||
-			graph.Nodes[edge.From].Scope != graph.Nodes[edge.To].Scope
+			graph.Nodes[edge.From].Scope != graph.Nodes[edge.To].Scope ||
+			mixedJunction[edgeIndex]
 	}
 	return outer
+}
+
+func mixedForwardJunctionMask(graph *flow.Graph, plan rankPlan) []bool {
+	indegree := make([]int, len(graph.Nodes))
+	outdegree := make([]int, len(graph.Nodes))
+	pairCount := make(map[[2]int]int, len(graph.Edges))
+	for edgeIndex, edge := range graph.Edges {
+		if plan.feedback[edgeIndex] {
+			continue
+		}
+		outdegree[edge.From]++
+		indegree[edge.To]++
+		pairCount[[2]int{edge.From, edge.To}]++
+	}
+	mixed := make([]bool, len(graph.Edges))
+	for edgeIndex, edge := range graph.Edges {
+		mixed[edgeIndex] = !plan.feedback[edgeIndex] &&
+			pairCount[[2]int{edge.From, edge.To}] == 1 &&
+			outdegree[edge.From] > 1 &&
+			indegree[edge.To] > 1
+	}
+	return mixed
 }
 
 func shiftPlacements(placements []placement, dx, dy int) {
@@ -87,6 +111,7 @@ func planOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, placements 
 	}
 
 	routes := make([]feedbackRoute, 0, outerCount)
+	mixedJunction := mixedForwardJunctionMask(graph, plan)
 	type targetLaneKey struct {
 		target int
 		dashed bool
@@ -100,7 +125,7 @@ func planOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, placements 
 		from := placements[edge.From]
 		to := placements[edge.To]
 		route := feedbackRoute{edgeIndex: edgeIndex, feedback: plan.feedback[edgeIndex]}
-		if graph.Direction == flow.TopToBottom && !plan.feedback[edgeIndex] {
+		if graph.Direction == flow.TopToBottom && !plan.feedback[edgeIndex] && !mixedJunction[edgeIndex] {
 			if compact, ok := planCompactTDForwardRoute(edgeIndex, edge, from, to, placements, options); ok {
 				routes = append(routes, compact)
 				continue
@@ -335,9 +360,6 @@ func appendOuterLegends(output string, graph *flow.Graph, feedback, outer []bool
 		if !outer[edgeIndex] {
 			continue
 		}
-		if !feedback[edgeIndex] && edge.Label == "" {
-			continue
-		}
 		arrow := "-->"
 		if edge.Dashed {
 			arrow = "-.->"
@@ -362,7 +384,7 @@ func appendOuterLegends(output string, graph *flow.Graph, feedback, outer []bool
 		if feedback[edgeIndex] {
 			feedbackLegend = append(feedbackLegend, line)
 			feedbackSequence++
-		} else if edge.Label != "" {
+		} else {
 			routedLegend = append(routedLegend, line)
 			routedSequence++
 		}

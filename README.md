@@ -30,9 +30,9 @@ Validate -.->|no| Reject[Reject + observe]
 - subgraph: `subgraph ID`, `subgraph ID[label]`, 중첩 `end`
 - node ID는 전체 graph에서 유일하며 각 node는 root 또는 하나의 subgraph에 직접 소속됩니다.
 - cycle과 self-loop는 SCC 분석 후 외곽 feedback route로 렌더링하며 label은 `feedback:` legend에 표시합니다.
-- 중간 rank를 건너뛰는 edge도 node 관통을 피하도록 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
-- cross-subgraph edge는 frame을 관통하지 않는 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
-- 인접 rank는 bounded median sweep으로 crossing을 줄이고 edge별 lane을 예약합니다. 서로 다른 source와 target의 route가 같은 cell component로 합쳐지면 모호한 그림 대신 오류를 반환합니다.
+- 중간 rank를 건너뛰거나 혼합 fan-out/fan-in junction을 만드는 edge는 node 관통을 피하도록 외곽 route를 사용하며, label 유무와 무관하게 endpoint를 `routed:` manifest에 표시합니다.
+- cross-subgraph edge는 endpoint의 최소 공통 조상 frame 안에서만 우회하며, label 유무와 무관하게 endpoint를 `routed:` manifest에 표시합니다.
+- 인접 rank는 bounded median sweep으로 crossing을 줄이고 edge별 lane을 예약합니다. 안전하게 분리할 수 있는 혼합 junction은 outer route와 manifest로 승격하고, 동일 endpoint의 parallel edge처럼 의미를 보존할 수 없는 경우는 오류를 반환합니다.
 - Canvas는 N/E/S/W 연결 방향으로 corner·tee·junction glyph를 합성하며 동일 endpoint의 parallel forward edge는 조용히 축약하지 않고 거부합니다.
 
 ```text

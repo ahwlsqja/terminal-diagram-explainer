@@ -21,13 +21,13 @@
 - `CGO_ENABLED=0`, `GOPROXY=off`에서 build/test할 수 있으며 `go list -m all`은 자기 모듈 하나만 출력해야 합니다.
 - map은 lookup에만 사용하고 배치·출력 순서는 source-order slice로 결정합니다.
 - Cycle feedback은 Tarjan SCC membership 안에서 source edge order대로 greedy 분류합니다. Feedback set은 inclusion-minimal이지만 minimum-cardinality라고 주장하지 않습니다.
-- Flat feedback route는 LR 아래 gutter와 TD 오른쪽 gutter를 사용합니다. Scoped feedback route는 frame-safe 예약 corridor와 전역 하단 perimeter를 사용하며 label은 최대 96행의 bounded legend로 분리합니다.
+- Flat feedback route는 LR 아래 gutter와 TD 오른쪽 gutter를 사용합니다. Scoped route는 endpoint의 최소 공통 조상 frame 안의 예약 corridor를 사용하고 root-scope route만 전역 perimeter를 사용하며 label은 bounded legend로 분리합니다.
 - 중간 rank를 건너뛰는 forward edge도 같은 outer-route planner를 사용해 intermediate node 관통을 차단합니다.
-- 인접-rank forward edge는 bounded median sweep과 edge별 lane을 사용합니다. Route cell component가 서로 다른 source와 target을 함께 연결하면 모호한 성공 출력을 거부하며, 동일 endpoint의 parallel forward edge도 silent collapse 대신 실패합니다.
+- 인접-rank forward edge는 bounded median sweep과 edge별 lane을 사용합니다. 혼합 fan-out/fan-in junction은 고유 endpoint edge를 outer route와 manifest로 승격하며, 동일 endpoint의 parallel forward edge는 silent collapse 대신 실패합니다.
 - Canvas line cell은 N/E/S/W 연결 방향을 보존하고 최종 Unicode/ASCII corner·tee·junction glyph를 결정적으로 합성합니다.
 - Subgraph는 `Node.Scope` 단일 membership과 source-order parent forest로 표현하며 빈 subtree와 node/subgraph ID 충돌을 거부합니다.
-- Scoped layout은 LR y-band, TD x-band로 sibling frame을 분리하고 cross-scope route는 예약 corridor와 검증된 frame portal만 사용합니다.
-- Feedback은 `feedback:`, label이 있는 skip-rank forward edge는 `routed:` legend로 분리하며 두 legend 모두 output bounds에 포함합니다.
+- Scoped layout은 LR y-band, TD x-band로 sibling frame을 분리하고 cross-scope route는 최소 공통 조상 frame 안의 예약 corridor와 검증된 frame portal만 사용합니다.
+- Feedback은 `feedback:`, skip-rank·혼합 junction·cross-scope forward edge는 `routed:` manifest로 분리합니다. Routed manifest는 label이 없어도 endpoint를 기록하며 두 section 모두 output bounds에 포함합니다.
 - Sequence layout은 participant source order와 message time order만 사용합니다. 일반 message는 label/arrow 2-row pitch, self-message는 전용 right corridor를 사용하며 fragment·activation route search는 수행하지 않습니다.
 - Message-only Sequence는 0.5 legacy fast path를 그대로 사용합니다. Fragment document만 ordered `Steps` timeline과 depth-inset frame planner를 사용합니다.
 - `loop`·`alt/else`·`opt`는 source-order presentation이며 fragment open·branch·end가 각각 전용 control row를 소비합니다. Empty branch와 malformed nesting은 fail-closed 처리합니다.

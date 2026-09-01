@@ -2,10 +2,113 @@ package render
 
 import (
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/ahwlsqja/terminal-diagram-explainer/internal/flow"
 )
+
+func TestScopedPlannerKeepsCrossScopeRouteInsideSharedAncestor(t *testing.T) {
+	for _, tt := range []struct {
+		name   string
+		source string
+	}{
+		{
+			name: "TD nested child to direct sibling",
+			source: `flowchart TD
+subgraph Outer
+subgraph Inner
+A[Leaf]
+end
+B[Sibling]
+end
+A --> B`,
+		},
+		{
+			name: "LR nested child to direct sibling",
+			source: `flowchart LR
+subgraph Platform
+subgraph Compute
+A[Worker]
+end
+B[(DB)]
+end
+A --> B`,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			graph := parseSubgraphFixture(t, tt.source)
+			plan, err := analyzeRanksWithBudget(graph, maxGraphWorkSteps)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outer := outerEdgeMask(graph, plan)
+			layout, err := placeScoped(graph, plan, outer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			routes, err := planScopedOuterRoutes(graph, plan, outer, layout, Options{MaxWidth: 160, MaxHeight: 120})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(routes) != 1 {
+				t.Fatalf("routes=%d, want 1", len(routes))
+			}
+
+			sharedAncestor := layout.frames[0]
+			for _, segment := range routes[0].segments {
+				portals, collinear := scopeBorderPortals(segment, sharedAncestor)
+				if collinear || len(portals) != 0 {
+					t.Fatalf("route escaped shared ancestor through portals=%v collinear=%t: segment=%+v frame=%+v", portals, collinear, segment, sharedAncestor)
+				}
+			}
+		})
+	}
+}
+
+func TestScopedPlannerReservesSharedAncestorCorridorsForSiblingFrames(t *testing.T) {
+	for _, direction := range []string{"TD", "LR"} {
+		t.Run(direction, func(t *testing.T) {
+			source := `flowchart ` + direction + `
+subgraph Outer
+subgraph Left
+A1 --> A2
+end
+subgraph Right
+B1 --> B2
+end
+end
+A1 --> B1
+A2 --> B2`
+			output := renderSubgraphFixture(t, source, Options{MaxWidth: 160, MaxHeight: 120})
+			for _, endpoint := range []string{"A1 --> B1", "A2 --> B2"} {
+				if !strings.Contains(output, endpoint) {
+					t.Fatalf("cross-sibling manifest lost %q:\n%s", endpoint, output)
+				}
+			}
+		})
+	}
+}
+
+func TestScopedPlannerRendersDenseMixedJunctions(t *testing.T) {
+	for _, direction := range []string{"TD", "LR"} {
+		t.Run(direction, func(t *testing.T) {
+			source := `flowchart ` + direction + `
+subgraph Outer
+A --> C
+A --> D
+B --> C
+B --> D
+end`
+			output := renderSubgraphFixture(t, source, Options{MaxWidth: 160, MaxHeight: 120})
+			for _, endpoint := range []string{"A --> C", "A --> D", "B --> C", "B --> D"} {
+				if !strings.Contains(output, endpoint) {
+					t.Fatalf("dense scoped manifest lost %q:\n%s", endpoint, output)
+				}
+			}
+		})
+	}
+}
 
 func TestScopedPortalValidatorRejectsInvalidLRPortals(t *testing.T) {
 	frame := scopeRect{left: 10, top: 10, right: 30, bottom: 30}

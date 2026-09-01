@@ -104,6 +104,7 @@ func buildScopeTree(graph *flow.Graph) scopeTree {
 }
 
 func placeScopedLR(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTree, widths []int) (scopedLayout, error) {
+	corridorCounts := scopedCorridorCounts(graph, outer)
 	layout := scopedLayout{
 		placements: make([]placement, len(graph.Nodes)),
 		routeX:     make([]int, len(graph.Nodes)),
@@ -154,7 +155,7 @@ func placeScopedLR(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTre
 		if ref == int(flow.RootScope) {
 			heights[ref] = contentHeight
 		} else {
-			heights[ref] = scopeContentTopLR + contentHeight + 2
+			heights[ref] = scopeContentTopLR + contentHeight + 2 + corridorCounts[ref]*2
 		}
 	}
 
@@ -195,8 +196,9 @@ func placeScopedLR(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTre
 		if !found {
 			return scopedLayout{}, fmt.Errorf("%w: empty scope %d", ErrInvalidGraph, ref)
 		}
-		left -= scopeFramePadLR
-		right += scopeFramePadLR
+		corridorPadding := corridorCounts[ref] * 2
+		left -= scopeFramePadLR + corridorPadding
+		right += scopeFramePadLR + corridorPadding
 		titleWidth, _ := textcell.Width(graph.Subgraphs[ref-1].Label)
 		if right-left < titleWidth+4 {
 			right = left + titleWidth + 4
@@ -211,6 +213,7 @@ func placeScopedLR(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTre
 }
 
 func placeScopedTD(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTree, widths []int) (scopedLayout, error) {
+	corridorCounts := scopedCorridorCounts(graph, outer)
 	layout := scopedLayout{
 		placements: make([]placement, len(graph.Nodes)),
 		routeX:     make([]int, len(graph.Nodes)),
@@ -315,12 +318,26 @@ func placeScopedTD(graph *flow.Graph, plan rankPlan, outer []bool, tree scopeTre
 			return scopedLayout{}, fmt.Errorf("%w: empty scope %d", ErrInvalidGraph, ref)
 		}
 		layout.frames[ref-1].top = top - 4
-		layout.frames[ref-1].bottom = bottom + 2
+		layout.frames[ref-1].bottom = bottom + 2 + corridorCounts[ref]*2
 	}
 
 	shiftScopedLayoutY(&layout, -scopedMinimumY(graph, outer, layout))
 	shiftScopedLayoutX(&layout, -scopedContentBounds(layout).left)
 	return layout, nil
+}
+
+func scopedCorridorCounts(graph *flow.Graph, outer []bool) []int {
+	counts := make([]int, len(graph.Subgraphs)+1)
+	for edgeIndex, edge := range graph.Edges {
+		if !outer[edgeIndex] {
+			continue
+		}
+		ancestor := lowestCommonScope(graph, graph.Nodes[edge.From].Scope, graph.Nodes[edge.To].Scope)
+		if ancestor != flow.RootScope {
+			counts[ancestor]++
+		}
+	}
+	return counts
 }
 
 func stackedHeight(directHeight int, children []flow.ScopeRef, heights []int) int {
@@ -500,11 +517,18 @@ func planScopedOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, layou
 	}
 	bounds := scopedContentBounds(layout)
 	routes := make([]feedbackRoute, 0, outerCount)
-	lane := 0
+	lanesByAncestor := make(map[flow.ScopeRef]int)
 	for edgeIndex, edge := range graph.Edges {
 		if !outer[edgeIndex] {
 			continue
 		}
+		sharedAncestor := lowestCommonScope(graph, graph.Nodes[edge.From].Scope, graph.Nodes[edge.To].Scope)
+		routeBounds := bounds
+		localCorridor := sharedAncestor != flow.RootScope
+		if localCorridor {
+			routeBounds = layout.frames[int(sharedAncestor)-1]
+		}
+		lane := lanesByAncestor[sharedAncestor]
 		from := layout.placements[edge.From]
 		to := layout.placements[edge.To]
 		route := feedbackRoute{edgeIndex: edgeIndex, feedback: plan.feedback[edgeIndex]}
@@ -516,9 +540,17 @@ func planScopedOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, layou
 			targetArrowX := to.x - 1
 			targetY := to.y + to.height/2
 			targetRouteY := layout.routeY[edge.To]
-			globalRight := bounds.right + 1 + lane*2
-			globalLeft := bounds.left - 2 - lane*2
-			laneY := bounds.bottom + 1 + lane*2
+			globalRight := routeBounds.right + 1 + lane*2
+			globalLeft := routeBounds.left - 2 - lane*2
+			laneY := routeBounds.bottom + 1 + lane*2
+			if localCorridor {
+				globalRight = routeBounds.right - 2 - lane*2
+				globalLeft = routeBounds.left + 1 + lane*2
+				laneY = routeBounds.bottom - 2 - lane*2
+				if globalLeft >= globalRight || laneY <= routeBounds.top+1 {
+					return nil, fmt.Errorf("%w: shared ancestor corridor has no gap", ErrLayout)
+				}
+			}
 			route.segments = []routeSegment{
 				{x1: sourceX, y1: sourceY, x2: sourceTurnX, y2: sourceY, dashed: edge.Dashed},
 				{x1: sourceTurnX, y1: sourceY, x2: sourceTurnX, y2: sourceRouteY, dashed: edge.Dashed},
@@ -534,12 +566,21 @@ func planScopedOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, layou
 			sourceX := from.x + from.width/2
 			sourceY := from.y + from.height
 			sourceRailY := sourceY + 2
+			if localCorridor && sharedAncestor == graph.Nodes[edge.From].Scope {
+				sourceRailY = sourceY
+			}
 			sourceRouteX := layout.routeX[edge.From]
 			targetX := to.x + to.width/2
 			targetRailY := to.y - 2
 			targetArrowY := to.y - 1
 			targetRouteX := layout.routeX[edge.To]
-			laneY := bounds.bottom + 1 + lane*2
+			laneY := routeBounds.bottom + 1 + lane*2
+			if localCorridor {
+				laneY = routeBounds.bottom - 2 - lane*2
+				if laneY <= routeBounds.top+1 {
+					return nil, fmt.Errorf("%w: shared ancestor corridor has no gap", ErrLayout)
+				}
+			}
 			route.segments = []routeSegment{
 				{x1: sourceX, y1: sourceY, x2: sourceX, y2: sourceRailY, dashed: edge.Dashed},
 				{x1: sourceX, y1: sourceRailY, x2: sourceRouteX, y2: sourceRailY, dashed: edge.Dashed},
@@ -558,7 +599,7 @@ func planScopedOuterRoutes(graph *flow.Graph, plan rankPlan, outer []bool, layou
 			return nil, err
 		}
 		routes = append(routes, route)
-		lane++
+		lanesByAncestor[sharedAncestor]++
 	}
 	return routes, nil
 }
@@ -599,6 +640,9 @@ func validateScopedRouteFrames(graph *flow.Graph, edge flow.Edge, route feedback
 			if collinear {
 				return fmt.Errorf("%w: outer route overlaps subgraph border", ErrLayout)
 			}
+			if containsSource && containsTarget && len(portals) != 0 {
+				return fmt.Errorf("%w: outer route escapes shared ancestor subgraph", ErrLayout)
+			}
 			for _, side := range portals {
 				allowed := false
 				if graph.Direction == flow.LeftToRight {
@@ -613,6 +657,24 @@ func validateScopedRouteFrames(graph *flow.Graph, edge flow.Edge, route feedback
 		}
 	}
 	return nil
+}
+
+func lowestCommonScope(graph *flow.Graph, left, right flow.ScopeRef) flow.ScopeRef {
+	ancestors := make(map[flow.ScopeRef]struct{})
+	for current := left; ; current = graph.Subgraphs[int(current)-1].Parent {
+		ancestors[current] = struct{}{}
+		if current == flow.RootScope {
+			break
+		}
+	}
+	for current := right; ; current = graph.Subgraphs[int(current)-1].Parent {
+		if _, exists := ancestors[current]; exists {
+			return current
+		}
+		if current == flow.RootScope {
+			return flow.RootScope
+		}
+	}
 }
 
 type portalSide uint8

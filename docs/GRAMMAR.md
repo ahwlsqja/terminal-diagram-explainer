@@ -41,9 +41,9 @@ B -.->|retry| A
 - `-->`는 동기·정상 흐름에 사용합니다.
 - `-.->`는 비동기·실패·보조 흐름에 사용합니다.
 - cycle과 self-loop는 지원합니다. Feedback edge는 source edge order에 따라 결정적으로 선택되며 외곽 gutter와 `feedback:` legend로 표현됩니다.
-- 중간 rank를 건너뛰는 forward edge는 외곽 gutter를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
+- 중간 rank를 건너뛰거나 혼합 fan-out/fan-in junction을 만드는 forward edge는 외곽 gutter를 사용하며 label 유무와 무관하게 endpoint가 `routed:` manifest에 표시됩니다.
 - 인접 rank의 forward edge는 source-order tie-break를 가진 bounded median sweep과 edge별 lane을 사용합니다.
-- 서로 다른 source와 서로 다른 target을 가진 route가 같은 cell component로 합쳐지면 topology를 추측하지 않고 실패합니다.
+- 서로 다른 source와 target이 섞이는 junction은 별도 outer route와 endpoint manifest로 승격합니다. 승격 후에도 의미를 보존할 수 없으면 topology를 추측하지 않고 실패합니다.
 - 동일 endpoint의 parallel forward edge는 하나의 선으로 축약하지 않고 renderer에서 거부합니다. Feedback/outer route로 분리된 edge는 기존처럼 별도 route와 legend를 유지합니다.
 - Unicode canvas는 N/E/S/W 연결 방향에서 corner·tee·junction을 합성합니다. `┼`는 실제 네 방향 연결일 때만 사용합니다.
 
@@ -74,7 +74,7 @@ end
 - 각 node는 root 또는 하나의 subgraph에 직접 소속됩니다. 기존 bare node를 다른 scope의 edge endpoint에서 참조해도 소속은 바뀌지 않습니다.
 - 빈 leaf subgraph는 거부하지만 nonempty child만 가진 parent는 허용합니다.
 - Scope를 포함한 문서에서 짝이 없는 `end`는 오류입니다. Flat 문서의 기존 `end`, `end[End]`, `end --> A` node 문법은 유지됩니다.
-- Cross-subgraph edge는 frame-safe 외곽 route를 사용하며 label이 있으면 `routed:` legend에 표시됩니다.
+- Cross-subgraph edge는 endpoint의 최소 공통 조상 frame을 벗어나지 않는 corridor를 사용합니다. 모든 routed edge는 label 유무와 무관하게 endpoint가 `routed:` manifest에 표시됩니다.
 
 ## Sequence Diagrams
 

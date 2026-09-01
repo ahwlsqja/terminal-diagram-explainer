@@ -8,14 +8,14 @@
 - LR bottom gutter, TD right gutter, self-loop, cycle+tail, disconnected cycle을 지원합니다.
 - 32,768 work-step budget과 48 nodes/96 edges 단일 SCC fixture를 검증합니다.
 - Feedback label은 inline이 아니라 bounded `feedback:` legend에 표시합니다.
-- Skip-rank forward edge도 outer route를 사용하고 label은 `routed:` legend에 표시합니다.
+- Skip-rank와 혼합 fan-out/fan-in forward edge도 outer route를 사용하고 endpoint는 `routed:` manifest에 항상 표시합니다.
 
 ## 2. Subgraph — 완료 (0.4.0)
 
 - `Node.Scope` 단일 membership과 source-order parent forest를 사용하고 graph-global node ID를 유지합니다.
 - `MaxSubgraphs=32`, `MaxSubgraphDepth=8`, `ScopeRef` representability guard를 적용합니다.
 - LR y-band, TD x-band, 중첩 frame, child-only parent를 지원합니다.
-- Cross-scope·feedback·skip-rank edge는 frame-safe corridor와 방향별 portal을 사용합니다.
+- Cross-scope route는 endpoint의 최소 공통 조상 frame 안의 corridor와 방향별 portal을 사용하며, feedback·skip-rank route도 bounded corridor를 사용합니다.
 - malformed `end`, duplicate membership, cross-subgraph edge, nested CJK label, long TD inline label을 parser/property/golden test로 고정합니다.
 
 ## 3. Sequence Diagram — 완료 (0.5.0)
@@ -127,11 +127,12 @@
 
 - 인접 rank node order에 source-order stable median sweep을 적용해 풀 수 있는 crossing을 먼저 줄입니다.
 - Rank gap을 forward edge 수에 맞춰 확장하고 edge별 lane을 예약합니다.
-- Forward route cell component가 여러 source와 여러 target을 동시에 연결하면 false reachability 대신 fail-closed 처리합니다.
+- Forward route cell component가 여러 source와 여러 target을 동시에 연결할 위험이 있으면 고유 endpoint edge를 outer route와 bounded manifest로 승격하고, 승격할 수 없는 parallel edge는 fail-closed 처리합니다.
 - 동일 endpoint의 parallel forward edge는 silent collapse를 거부하고 feedback/outer route로 분리된 edge는 기존 별도 route를 유지합니다.
 - Canvas는 N/E/S/W 연결 mask로 corner·tee·junction을 합성해 elbow와 실제 교차를 구분합니다.
 - CLI `-width`, `-height`, `-fit`을 추가하고 plugin wrapper는 120×200 viewport에서 반대 방향 auto-fit을 사용합니다.
 - Journey 218-cell LR fixture, crossed adjacency, parallel label, directional elbow를 회귀 테스트로 고정합니다.
+- 무라벨 skip-rank·혼합 junction도 semantic endpoint를 `routed:` manifest에 기록하고, scoped route는 endpoint의 최소 공통 조상 frame을 벗어나지 않습니다.
 
 ## 16. SVG Image Backend — 완료 (0.17.0)
 
@@ -147,6 +148,10 @@
 - Viewer는 keyboard-accessible zoom in/out, fit, 100% controls와 pointer pan·wheel zoom을 제공합니다.
 - ResizeObserver가 viewport 변화에 맞춰 fit 상태를 유지하며 외부 script·network·runtime data fetch를 사용하지 않습니다.
 - Plugin artifact script는 PNG와 HTML을 같은 source에서 생성해 inline preview와 interactive inspection 선택지를 함께 제공합니다.
+
+## 후속 시각 품질 과제
+
+- Dense scoped LR의 outer corridor는 endpoint manifest로 topology를 보존하지만 polyline이 길고 subgraph frame과 같은 stroke를 사용해 scan cost가 큽니다. LCA 내부 compact route search 또는 SVG semantic styling을 별도 개선으로 다룹니다.
 
 ## 공통 완료 게이트
 

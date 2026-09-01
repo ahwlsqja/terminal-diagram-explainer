@@ -50,8 +50,8 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - decision은 `ID{label}`, data store/view는 `ID[(label)]`로 표시한다.
 - ownership, service, data, trust boundary가 설명의 핵심이면 `subgraph ID[label] ... end`로 묶는다. Node ID와 subgraph ID는 전체 graph에서 유일해야 한다.
 - cycle과 self-loop를 지원한다. Feedback edge는 외곽 route로 그리고 label은 도식 아래 `feedback:` legend에 표시된다.
-- 중간 rank를 건너뛰는 edge도 외곽 route를 사용하며 label은 `routed:` legend에 표시될 수 있다.
-- cross-subgraph edge는 frame-safe 외곽 route를 사용하며 label은 `routed:` legend에 표시될 수 있다.
+- 중간 rank를 건너뛰거나 혼합 fan-out/fan-in junction을 만드는 edge는 외곽 route를 사용하며, label 유무와 무관하게 semantic ID endpoint가 `routed:` manifest에 표시된다.
+- cross-subgraph edge는 endpoint의 최소 공통 조상 frame을 벗어나지 않는 corridor를 사용하며, semantic ID endpoint가 `routed:` manifest에 표시된다.
 - Sequence participant는 먼저 명시 선언하고, request는 `->>`, return은 `-->>`, fan-out은 연속 message로 표시한다.
 - 재시도·반복 구간은 `loop label ... end`, 상호 배타적 결과는 `alt label ... else label ... end`, 선택적 호출은 `opt label ... end`로 묶는다.
 - 각 fragment branch에는 실제 message를 넣고, frame label은 조건·반복 이유를 짧게 쓴다.
