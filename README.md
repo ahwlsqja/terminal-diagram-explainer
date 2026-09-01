@@ -11,7 +11,7 @@
 
 ## 지원 문법
 
-```mermaid
+```text
 flowchart LR
 subgraph Service[Service boundary]
 Receive[Request] --> Validate{Valid?}
@@ -33,7 +33,7 @@ Validate -.->|no| Reject[Reject + observe]
 - 중간 rank를 건너뛰는 edge도 node 관통을 피하도록 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
 - cross-subgraph edge는 frame을 관통하지 않는 외곽 route를 사용하며 label은 `routed:` legend에 표시합니다.
 
-```mermaid
+```text
 sequenceDiagram
 participant Client as Browser Client
 participant API as API Gateway
@@ -56,7 +56,7 @@ Worker ->> Worker: record metrics
 - `par label ... and label ... end`는 독립 branch를 source/display order로 보여줍니다. 이 세로 순서는 실제 동시 실행 순서나 happens-before를 뜻하지 않습니다.
 - `par`는 최소 두 개의 nonempty branch를 요구하며 activation은 각 branch 안에서 완결되어야 합니다.
 
-```mermaid
+```text
 erDiagram
 Customer ||--o{ Order : places
 Customer[고객] {
@@ -84,7 +84,7 @@ Order[주문] {
 - 최대 32 entities, 64 relationships, attributes 총 192/entity당 32입니다.
 - Named `CONSTRAINT`, `DEFAULT`, `CHECK`, referential actions, inline table constraint, `classDef`, `style`, `click`, HTML/Markdown label, Sequence/ER note와 advanced ER semantics는 아직 명시적으로 거부합니다.
 
-```mermaid
+```text
 stateDiagram-v2
 direction TD
 state "검증 중" as Validating
