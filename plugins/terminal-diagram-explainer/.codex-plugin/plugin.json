@@ -1,6 +1,6 @@
 {
   "name": "terminal-diagram-explainer",
-  "version": "0.17.0",
+  "version": "0.17.0+codex.20260901181631",
   "description": "복잡한 소프트웨어 흐름을 bounded 그래픽 도식과 단계별 해설로 설명합니다.",
   "author": {
     "name": "ahwlsqja"

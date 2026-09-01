@@ -92,6 +92,9 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 Mermaid subset source를 만든 뒤 기본적으로 이 Skill 디렉터리의 `scripts/render-image.sh`에 stdin으로 전달한다.
 
+- 사용자가 source 재사용을 명시적으로 요청하지 않은 한 raw Mermaid source나 `mermaid`/`flowchart` code fence를 최종 답변에 출력하지 않는다.
+- Label은 한 줄 plain text로 유지한다. `<br/>`·HTML·Markdown으로 줄바꿈이나 스타일을 넣지 말고 짧은 label 또는 여러 node로 분리한다.
+
 ```bash
 printf '%s\n' "$diagram_source" | scripts/render-image.sh
 ```

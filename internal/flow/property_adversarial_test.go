@@ -46,6 +46,7 @@ func TestGrammarRejectsAmbiguousOrUnsupportedForms(t *testing.T) {
 		"unsupported round node":   "flowchart LR\nA(label)",
 		"unsupported thick arrow":  "flowchart LR\nA ==> B",
 		"unsupported dotted arrow": "flowchart LR\nA -.->> B",
+		"unsupported HTML break":   "flowchart TD\nA[\"line<br/>break\"]",
 		"tab around arrow":         "flowchart LR\nA\t-->\tB",
 		"non ASCII identifier":     "flowchart LR\n가 --> B",
 		"digit-leading identifier": "flowchart LR\n1A --> B",

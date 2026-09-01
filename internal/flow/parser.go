@@ -524,6 +524,9 @@ func parseErrorAt(lineNo, baseColumn, localColumn int, message string) error {
 }
 
 func validateLabel(label string, maxCells int) error {
+	if strings.Contains(strings.ToLower(label), "<br") {
+		return fmt.Errorf("HTML line break는 지원하지 않는 label")
+	}
 	width, err := textcell.Width(label)
 	if err != nil {
 		return fmt.Errorf("제어 문자 또는 지원하지 않는 label: %w", err)
