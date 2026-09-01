@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Diagram widget host harness</title>
+  <style>
+    :root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+    html, body { margin: 0; min-height: 100%; background: light-dark(#f7f7f8, #111113); }
+    main { width: min(100%, 980px); margin: 0 auto; }
+    iframe { display: block; width: 100%; height: 590px; border: 0; }
+  </style>
+</head>
+<body>
+  <main><iframe id="widget" src="/dist/widget.html" sandbox="allow-scripts"></iframe></main>
+  <script>
+    const frame = document.getElementById("widget");
+    const payload = {
+      source: `flowchart LR
+subgraph Client[Client boundary]
+  Browser[Browser] --> API[API Gateway]
+end
+subgraph Service[Service boundary]
+  API --> Queue[(Work queue)]
+  Queue --> Worker[Async Worker]
+  Worker --> Store[(Canonical store)]
+end
+API -.-> Reject[Reject and observe]`,
+      title: "Event ingestion path",
+      theme: "auto",
+    };
+    let requestId = 0;
+
+    function notify(method, params) {
+      frame.contentWindow.postMessage({ jsonrpc: "2.0", method, params }, "*");
+    }
+
+    function sendPayload(next) {
+      notify("ui/notifications/tool-input", { arguments: next });
+      notify("ui/notifications/tool-result", {
+        structuredContent: next,
+        content: [{ type: "text", text: `Rendered interactive diagram: ${next.title}` }],
+      });
+    }
+
+    window.renderCase = sendPayload;
+    window.addEventListener("message", (event) => {
+      if (event.source !== frame.contentWindow) return;
+      const message = event.data;
+      if (!message || message.jsonrpc !== "2.0") return;
+      if (message.method === "ui/initialize") {
+        frame.contentWindow.postMessage({
+          jsonrpc: "2.0",
+          id: message.id,
+          result: {
+            protocolVersion: message.params.protocolVersion,
+            hostInfo: { name: "diagram-test-host", version: "1.0.0" },
+            hostCapabilities: {},
+            hostContext: {
+              theme: matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark",
+              platform: "desktop",
+              displayMode: "inline",
+              availableDisplayModes: ["inline"],
+            },
+          },
+        }, "*");
+        return;
+      }
+      if (message.method === "ui/notifications/initialized") {
+        sendPayload(payload);
+        return;
+      }
+      if (message.id !== undefined) {
+        frame.contentWindow.postMessage({ jsonrpc: "2.0", id: message.id, result: {} }, "*");
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 ---
 name: terminal-diagram-explainer
-description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·Worker 호출 순서·상태 전이·장애 원인을 한 줄 결론, bounded SVG/PNG와 interactive HTML Flowchart·Sequence·ER·State Diagram, 단계별 해설로 설명한다. 관계·분기·경계·시간 순서가 여러 개인 개발 설명과 코드 변경의 런타임 의미를 전달할 때 사용하며 단순한 한 단계 답변이나 text-only 요청에는 사용하지 않는다.
+description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·Worker 호출 순서·상태 전이·장애 원인을 한 줄 결론, interactive Mermaid UI 또는 bounded fallback Flowchart·Sequence·ER·State Diagram, 단계별 해설로 설명한다. 관계·분기·경계·시간 순서가 여러 개인 개발 설명과 코드 변경의 런타임 의미를 전달할 때 사용하며 단순한 한 단계 답변이나 text-only 요청에는 사용하지 않는다.
 ---
 
 # Terminal Diagram Explainer
@@ -28,7 +28,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 ## 기본 출력
 
 1. **한 줄 결론**: 무엇이 왜 그렇게 동작하는지 먼저 말한다.
-2. **그래픽 도식 한 개**: 한 가지 핵심 이야기만 5~12 nodes 또는 최대 6 participants로 표현한다. 이미지 attachment를 사용할 수 없는 surface에서만 터미널 도식을 사용한다.
+2. **그래픽 도식 한 개**: 한 가지 핵심 이야기만 5~12 nodes 또는 최대 6 participants로 표현한다. `render_diagram` MCP tool을 기본으로 사용하고 UI를 지원하지 않는 surface에서만 artifact/terminal fallback을 사용한다.
 3. **읽는 순서**: 도식 label과 연결한 3~7단계 설명을 쓴다.
 4. **개발 핵심**: 관련 있는 항목만 고른다.
    - source of truth와 data ownership
@@ -90,7 +90,14 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 ## 렌더링
 
-Mermaid subset source를 만든 뒤 기본적으로 이 Skill 디렉터리의 `scripts/render-artifacts.sh`에 stdin으로 전달한다.
+확인된 fact ledger에서 Mermaid 11 표준 source를 만든 뒤 다음 우선순위를 적용한다.
+
+1. `render_diagram` MCP tool이 있으면 `{source, title, theme: "auto"}`로 호출한다. 이 결과의 interactive UI가 기본 도식이다.
+2. Tool은 Flowchart·Sequence·ER·State의 표준 Mermaid source만 받는다. `policy` custom statement, ER display alias/table constraint처럼 표준 Mermaid가 아닌 metadata는 source에 넣지 말고 단계별 해설에 보존한다.
+3. MCP Apps UI가 없는 client에서도 tool의 text/structured result가 남는다. UI가 실제로 표시되지 않거나 tool이 없을 때만 아래 artifact fallback을 실행한다.
+4. Artifact 변환기도 없을 때만 terminal text를 사용한다.
+
+그래픽 source의 안전한 표준 문법은 [references/graphic-grammar.md](references/graphic-grammar.md)를 따른다. `click`, external image/icon, `url()`, `@import`, init directive, `themeCSS`, active HTML은 만들지 않는다.
 
 - 사용자가 source 재사용을 명시적으로 요청하지 않은 한 raw Mermaid source나 `mermaid`/`flowchart` code fence를 최종 답변에 출력하지 않는다.
 - Label은 한 줄 plain text로 유지한다. `<br/>`·HTML·Markdown으로 줄바꿈이나 스타일을 넣지 말고 짧은 label 또는 여러 node로 분리한다.
@@ -99,7 +106,7 @@ Mermaid subset source를 만든 뒤 기본적으로 이 Skill 디렉터리의 `s
 printf '%s\n' "$diagram_source" | scripts/render-artifacts.sh
 ```
 
-- 성공 stdout JSON의 `png` 경로를 `view_image` 같은 local image 도구로 읽어 image block으로 첨부한다.
+- MCP UI가 성공한 경우 PNG·HTML을 중복 첨부하지 않는다. Fallback을 실행한 경우에만 성공 stdout JSON의 `png` 경로를 `view_image` 같은 local image 도구로 읽어 image block으로 첨부한다.
 - 같은 JSON의 `html` 절대 경로를 `Interactive HTML로 열기` Markdown 링크로 함께 제공해 사용자가 pan·zoom·fit viewer를 선택할 수 있게 한다. 사용자가 inline image만 요청하면 HTML 링크를 생략할 수 있다.
 - Feedback/cycle이 2개 이상이거나 node가 8개 이상인 복잡한 도식은 PNG 미리보기와 HTML 링크를 모두 제공한다. 단순 도식은 PNG를 우선한다.
 - SVG/XML source나 PNG 경로 문자열을 최종 답변 본문에 붙이지 않는다.
@@ -109,4 +116,4 @@ printf '%s\n' "$diagram_source" | scripts/render-artifacts.sh
 - 이미지 변환기나 image attachment 도구가 없는 surface에서는 동일 source를 `scripts/render.sh`로 렌더하고 성공 stdout을 `text` code fence에 그대로 넣는다.
 - 두 방향 모두 viewport를 넘거나 route가 모호하면 label·node 수를 줄이거나 핵심 이야기를 두 도식으로 나눠 한 번만 재시도한다.
 - 두 번째 실패 시 수동 Unicode 도식을 만들지 않는다. 도식을 생략하고 확인된 사실만 text로 설명하며 renderer 한계를 한 문장으로 밝힌다.
-- renderer는 프로젝트 파일을 만들거나 자동 다운로드·업데이트하지 않는다.
+- MCP server와 widget은 외부 network를 사용하지 않으며 runtime package download를 수행하지 않는다. Fallback renderer도 프로젝트 파일을 만들거나 자동 다운로드·업데이트하지 않는다.

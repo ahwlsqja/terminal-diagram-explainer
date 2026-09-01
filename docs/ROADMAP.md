@@ -149,6 +149,15 @@
 - ResizeObserver가 viewport 변화에 맞춰 fit 상태를 유지하며 외부 script·network·runtime data fetch를 사용하지 않습니다.
 - Plugin artifact script는 PNG와 HTML을 같은 source에서 생성해 inline preview와 interactive inspection 선택지를 함께 제공합니다.
 
+## 18. Mermaid MCP App — 완료 (0.19.0)
+
+- Plugin-scoped local stdio MCP server가 read-only `render_diagram` tool과 `ui://terminal-diagram-explainer/viewer-v1.html` resource를 제공합니다.
+- Bundled Mermaid가 terminal cell geometry를 거치지 않고 semantic SVG를 생성하며 source 확인, pan, zoom, fit, 100% view를 제공합니다.
+- UI는 MCP Apps bridge와 OpenAI compatibility input을 지원하고 UI 미지원 client에는 text/structured result와 기존 artifact fallback을 유지합니다.
+- Server/widget 이중 source policy, CSP, SVG post-sanitization, input/resource bounds와 deterministic bundle test를 적용합니다.
+- Runtime package download, CDN, Playwright, Chromium과 remote Mermaid service를 사용하지 않습니다.
+- 실제 Flow·Sequence·ER·State 215개를 1024-dark·736-light·360-dark에서 645회 렌더하고, narrow fit 50% 미만 106개는 100% zoom·pan·selection-collapse screenshot까지 재생하는 corpus를 repo에 고정합니다.
+
 ## 후속 시각 품질 과제
 
 - Dense scoped LR의 outer corridor는 endpoint manifest로 topology를 보존하지만 polyline이 길고 subgraph frame과 같은 stroke를 사용해 scan cost가 큽니다. LCA 내부 compact route search 또는 SVG semantic styling을 별도 개선으로 다룹니다.

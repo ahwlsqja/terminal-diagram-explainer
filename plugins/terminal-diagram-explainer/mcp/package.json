@@ -1,0 +1,21 @@
+{
+  "name": "terminal-diagram-explainer-mcp",
+  "version": "0.19.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "npm run build && node --test test/*.test.mjs",
+    "check": "npm test",
+    "test:visual": "node test/batch-render.mjs",
+    "serve:test": "node test/serve-harness.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "1.7.5",
+    "mermaid": "11.17.2"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.62.1"
+  }
+}

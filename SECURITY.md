@@ -1,8 +1,22 @@
 # 입력·실행 경계
 
-이 도구는 Codex가 생성한 작은 설명용 Flowchart, Sequence, ER, State Diagram subset만 처리합니다. 임의 Mermaid 호환 renderer가 아닙니다.
+Go fallback renderer는 Codex가 생성한 작은 설명용 Flowchart, Sequence, ER, State Diagram subset만 처리합니다. Graphical MCP path는 bundled Mermaid 11을 사용하지만 Skill과 server policy가 software explanation 문법·입력 크기·외부 resource를 별도로 제한합니다.
 
 ## 불변식
+
+### Graphical MCP path
+
+- `render_diagram` 입력은 256 KiB, 2,048 lines 이하이며 title은 80자 이하입니다.
+- Tool은 read-only·idempotent이고 project file이나 durable state를 변경하지 않습니다.
+- Server와 widget은 external image/icon metadata, `click`/remote link, `url()`, `@import`, `themeCSS`, init directive, active/encoded HTML을 각각 독립적으로 거부합니다.
+- Terminal control, bidi override와 zero-width format character를 render 전에 거부합니다.
+- Mermaid는 `securityLevel=strict`, `htmlLabels=false`, `maxEdges=200`, `maxTextSize=250000`으로 초기화합니다.
+- Widget은 `default-src 'none'`, `connect-src 'none'`, `img-src data: blob:`, `frame-src 'none'` CSP를 포함하며 외부 script·font·network resource를 로드하지 않습니다.
+- Mermaid가 만든 SVG에서도 `script`, `foreignObject`, `image`, link/event handler와 CSS `url()` attribute를 제거합니다.
+- UI resource는 presentation layer입니다. Fact ledger와 source of truth는 Skill/model context에 있고 widget state는 authoritative data가 아닙니다.
+- MCP Apps UI가 없는 client에서는 text/structured result와 기존 artifact renderer로 fallback합니다.
+
+### Terminal fallback path
 
 - 입력은 256 KiB 이하입니다.
 - 최대 2,048 lines, 48 nodes, 96 edges, 32 subgraphs, 중첩 깊이 8, label 96 cells입니다.
@@ -17,7 +31,7 @@
 - invalid/unsupported syntax는 line/column이 있는 오류로 fail-closed 처리합니다.
 - 입력 검증·파싱·렌더 실패는 stdout에 아무것도 기록하지 않습니다. OS·pipe·writer가 실제 쓰기 도중 실패한 경우에는 이미 전달된 byte를 회수할 수 없으므로 exit code 1과 stderr 진단으로 알립니다.
 - label의 terminal control·bidi·format 문자는 렌더 전에 거부합니다.
-- `term-diagram` binary에는 네트워크, HTTP server, shell, subprocess, environment-driven behavior, runtime file write가 없습니다. Plugin의 선택적 `render-image.sh`/`render-artifacts.sh`만 임시 SVG/PNG/HTML을 만들고 설치된 `sips`·`rsvg-convert`·ImageMagick 중 하나를 호출하며 다운로드하지 않습니다.
+- `term-diagram` binary에는 네트워크, HTTP server, shell, subprocess, environment-driven behavior, runtime file write가 없습니다. Plugin의 MCP server는 bundled static widget만 읽고, 선택적 `render-image.sh`/`render-artifacts.sh`만 임시 SVG/PNG/HTML을 만들고 설치된 `sips`·`rsvg-convert`·ImageMagick 중 하나를 호출하며 다운로드하지 않습니다.
 - `CGO_ENABLED=0`, `GOPROXY=off`에서 build/test할 수 있으며 `go list -m all`은 자기 모듈 하나만 출력해야 합니다.
 - map은 lookup에만 사용하고 배치·출력 순서는 source-order slice로 결정합니다.
 - Cycle feedback은 Tarjan SCC membership 안에서 source edge order대로 greedy 분류합니다. Feedback set은 inclusion-minimal이지만 minimum-cardinality라고 주장하지 않습니다.
@@ -73,3 +87,5 @@
 - 기능 요구는 Mermaid의 공개 텍스트 문법 subset과 일반 개발자 설명 요구에서 정의했습니다.
 - upstream 구현을 검토한 동일 주체가 작성했으므로 법적 의미의 clean-room이라고 표현하지 않습니다.
 - upstream source code, 함수 구조, golden fixture 또는 test corpus를 복사하지 않은 독립 재작성입니다.
+- Paseo의 Apache-2.0 source에서 Markdown fence→sandboxed Mermaid runtime→zoomable viewer 구조와 보안 경계를 검토했지만 source code를 복사하지 않았습니다. Graphical implementation은 MCP Apps와 Mermaid의 공개 API 위에서 독립 작성했습니다.
+- Bundled runtime의 실제 third-party license와 version은 plugin의 `mcp/dist/THIRD_PARTY_NOTICES.md`에 build-time 생성합니다.

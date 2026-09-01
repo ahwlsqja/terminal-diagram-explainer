@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "terminal-diagram-explainer": {
+      "command": "node",
+      "args": ["./mcp/src/server.mjs"],
+      "cwd": ".",
+      "tool_timeout_sec": 30
+    }
+  }
+}

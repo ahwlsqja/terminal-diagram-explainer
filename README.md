@@ -1,15 +1,22 @@
 # Terminal Diagram Explainer
 
-복잡한 소프트웨어 아키텍처·데이터·API·Worker 흐름을 터미널에서 한눈에 설명하도록 돕는 Codex 플러그인과 standalone renderer입니다.
+복잡한 소프트웨어 아키텍처·데이터·API·Worker 흐름을 interactive Mermaid UI와 bounded fallback으로 설명하는 Codex 플러그인입니다.
 
-구성은 두 부분으로 나뉩니다.
+구성은 세 부분으로 나뉩니다.
 
+- `render_diagram`: Mermaid가 bundled된 sandboxed MCP App에서 semantic SVG를 만들고 pan·zoom·fit·source 전환 UI로 보여주는 기본 경로
 - `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence·ER·State → Unicode/ASCII/SVG renderer
-- `terminal-diagram-explainer`: PNG 미리보기와 pan·zoom 가능한 self-contained HTML을 함께 만들고, 지원되지 않는 surface에서만 terminal text로 fallback하는 Codex Skill
+- `terminal-diagram-explainer`: 시각화 요청을 MCP UI로 보내고 UI가 없는 surface에서 PNG·HTML·terminal 순으로 fallback하는 Codex Skill
 
 플러그인은 표현 방식만 추가하며 프로젝트의 `AGENTS.md`, SDLC, workflow 또는 repo-local Skill을 변경하지 않습니다.
 
-## 지원 문법
+## Graphical UI
+
+Codex Desktop의 지원 surface에서는 Skill이 표준 Mermaid source를 `render_diagram` MCP tool에 전달합니다. Tool은 외부 network 없이 bundled Mermaid로 SVG를 만들며, source 확인과 pan·zoom·fit을 한 화면에서 제공합니다. UI를 표시하지 않는 client에서도 tool 결과가 text와 structured data로 남고 기존 artifact path가 fallback합니다.
+
+Graphical source는 standard Mermaid 11을 사용하되 Skill은 software explanation에 필요한 Flowchart·Sequence·ER·State로 제한합니다. `click`, remote image/icon, CSS URL/import, init directive, active HTML은 server와 widget 양쪽에서 거부합니다.
+
+## Terminal fallback 문법
 
 ```text
 flowchart LR
@@ -123,6 +130,11 @@ GOTOOLCHAIN=local GOPROXY=off go test ./...
 GOTOOLCHAIN=local GOPROXY=off go test -race ./...
 GOTOOLCHAIN=local GOPROXY=off go vet ./...
 GOTOOLCHAIN=local GOPROXY=off go list -m all
+cd plugins/terminal-diagram-explainer/mcp
+npm ci --ignore-scripts
+npm audit --omit=dev
+npm test
+npm run test:visual
 ```
 
 Standalone CLI 기본 viewport는 240×200입니다. 좁은 출력 surface에서는 폭과 자동 방향 전환을 명시할 수 있습니다.
@@ -157,7 +169,7 @@ go run ./cmd/eval-pack -root . -batch submission.json -review review.json > repo
 
 ## 설치
 
-Go 1.25 이상과 Codex CLI가 필요합니다. renderer는 `$CODEX_HOME/bin/term-diagram`에 설치됩니다.
+Go 1.25 이상, Node.js 20 이상, Codex CLI가 필요합니다. Graphical MCP runtime은 plugin에 build artifact로 포함되고 fallback renderer는 `$CODEX_HOME/bin/term-diagram`에 설치됩니다.
 
 ```bash
 scripts/install-local.sh

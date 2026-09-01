@@ -1,7 +1,7 @@
 {
   "name": "terminal-diagram-explainer",
-  "version": "0.18.0+codex.20260901192449",
-  "description": "복잡한 소프트웨어 흐름을 bounded 그래픽과 interactive HTML 도식으로 설명합니다.",
+  "version": "0.19.0+codex.20260901201840",
+  "description": "복잡한 소프트웨어 흐름을 interactive Mermaid UI와 bounded fallback 도식으로 설명합니다.",
   "author": {
     "name": "ahwlsqja"
   },
@@ -10,13 +10,14 @@
   "license": "MIT",
   "keywords": ["terminal", "diagram", "flowchart", "sequence-diagram", "er-diagram", "architecture", "developer-tools"],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Terminal Diagram Explainer",
-    "shortDescription": "개발 흐름을 안전한 그래픽 도식으로 설명",
-    "longDescription": "아키텍처, 데이터 흐름, API·Worker 호출 순서와 장애 원인을 bounded SVG/PNG와 pan·zoom 가능한 HTML diagram으로 전달합니다.",
+    "shortDescription": "개발 흐름을 interactive Mermaid UI로 설명",
+    "longDescription": "아키텍처, 데이터 흐름, API·Worker 호출 순서와 장애 원인을 pan·zoom·source 전환이 가능한 Mermaid UI로 보여주고, UI 미지원 환경에서는 bounded PNG·HTML·terminal diagram으로 fallback합니다.",
     "developerName": "ahwlsqja",
     "category": "Productivity",
-    "capabilities": [],
-    "defaultPrompt": "Use $terminal-diagram-explainer to explain this software flow with a graphical diagram and interactive HTML option."
+    "capabilities": ["Interactive", "Read"],
+    "defaultPrompt": "Use $terminal-diagram-explainer to explain this software flow with an interactive Mermaid diagram."
   }
 }
