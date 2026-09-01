@@ -36,8 +36,27 @@ func TestRunERExactDispatcherAndNoPartialOutput(t *testing.T) {
 			t.Fatalf("source=%q result=%+v", source, result)
 		}
 	}
-	invalid := invoke(nil, strings.NewReader("erDiagram\nA ||--|| Missing : x\nA{}"))
-	if invalid.code != 2 || invalid.stdout != "" || invalid.stderr == "" {
-		t.Fatalf("invalid=%+v", invalid)
+	for _, source := range []string{
+		"erDiagram\nA ||--|| Missing : x\nA{}",
+		"erDiagram\nA{\nstring email NOT PK\n}",
+	} {
+		invalid := invoke(nil, strings.NewReader(source))
+		if invalid.code != 2 || invalid.stdout != "" || invalid.stderr == "" {
+			t.Fatalf("source=%q invalid=%+v", source, invalid)
+		}
+	}
+}
+
+func TestRunERConstraintCanonicalOrder(t *testing.T) {
+	source := "erDiagram\nA{\nstring email NOT NULL FK UNIQUE PK\n}"
+	path := filepath.Join(t.TempDir(), "constraints.er")
+	if err := os.WriteFile(path, []byte(source), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, arguments := range [][]string{nil, {"-ascii"}, {"-f", path}} {
+		result := invoke(arguments, strings.NewReader(source))
+		if result.code != 0 || result.stderr != "" || !strings.Contains(result.stdout, "PK FK UNIQUE NOT NULL string email") {
+			t.Fatalf("arguments=%v result=%+v", arguments, result)
+		}
 	}
 }

@@ -52,6 +52,9 @@ func Parse(source string, limits Limits) (*Diagram, error) {
 	if strings.ContainsRune(source, '\r') {
 		return nil, &ParseError{Line: 1, Column: 1, Message: "단독 CR 문자는 지원하지 않음"}
 	}
+	if err := validateSourceCharacters(source); err != nil {
+		return nil, err
+	}
 	lines := strings.Split(source, "\n")
 	if strings.HasSuffix(source, "\n") && len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
@@ -306,36 +309,91 @@ func hasRelationshipIntent(line string) bool {
 }
 
 func parseAttribute(line sourceLine, limits Limits) (Attribute, error) {
-	fields := strings.Fields(line.text)
-	if len(fields) < 2 || len(fields) > 4 {
-		return Attribute{}, parseError(line, 1, "attribute는 `type name [PK] [FK]` 형식이어야 함")
+	tokens := attributeTokens(line.text)
+	if len(tokens) < 2 {
+		return Attribute{}, parseError(line, 1, "attribute는 `type name [PK] [FK] [UNIQUE] [NOT NULL]` 형식이어야 함")
 	}
-	if err := validateID(fields[0], limits.MaxIDBytes); err != nil {
+	if len(tokens) > 7 {
+		return Attribute{}, parseError(line, tokens[7].column, "attribute marker 수 제한 초과")
+	}
+	if err := validateID(tokens[0].text, limits.MaxIDBytes); err != nil {
 		return Attribute{}, parseError(line, 1, "attribute type이 유효하지 않음")
 	}
-	if err := validateID(fields[1], limits.MaxIDBytes); err != nil {
-		return Attribute{}, parseError(line, strings.Index(line.text, fields[1])+1, "attribute name이 유효하지 않음")
+	if err := validateID(tokens[1].text, limits.MaxIDBytes); err != nil {
+		return Attribute{}, parseError(line, tokens[1].column, "attribute name이 유효하지 않음")
 	}
-	attribute := Attribute{Type: fields[0], Name: fields[1]}
-	for _, marker := range fields[2:] {
-		var key Key
-		switch marker {
+	attribute := Attribute{Type: tokens[0].text, Name: tokens[1].text}
+	for index := 2; index < len(tokens); {
+		token := tokens[index]
+		switch token.text {
 		case "PK":
-			key = PrimaryKey
+			if attribute.Key&PrimaryKey != 0 {
+				return Attribute{}, parseError(line, token.column, "PK marker가 중복됨")
+			}
+			attribute.Key |= PrimaryKey
 		case "FK":
-			key = ForeignKey
+			if attribute.Key&ForeignKey != 0 {
+				return Attribute{}, parseError(line, token.column, "FK marker가 중복됨")
+			}
+			attribute.Key |= ForeignKey
+		case "UNIQUE":
+			if attribute.Constraint&Unique != 0 {
+				return Attribute{}, parseError(line, token.column, "UNIQUE marker가 중복됨")
+			}
+			attribute.Constraint |= Unique
+		case "NOT":
+			if index+1 >= len(tokens) || tokens[index+1].text != "NULL" {
+				column := token.column
+				if index+1 < len(tokens) {
+					column = tokens[index+1].column
+				}
+				return Attribute{}, parseError(line, column, "NOT 뒤에는 인접한 NULL marker가 필요함")
+			}
+			if attribute.Constraint&NotNull != 0 {
+				return Attribute{}, parseError(line, token.column, "NOT NULL marker가 중복됨")
+			}
+			attribute.Constraint |= NotNull
+			index += 2
+			continue
 		default:
-			return Attribute{}, parseError(line, strings.Index(line.text, marker)+1, "지원 key marker는 PK와 FK뿐임")
+			return Attribute{}, parseError(line, token.column, "지원하지 않는 attribute marker")
 		}
-		if attribute.Key&key != 0 {
-			return Attribute{}, parseError(line, strings.Index(line.text, marker)+1, "key marker가 중복됨")
-		}
-		attribute.Key |= key
+		index++
 	}
-	if err := validateText(renderedAttribute(attribute), limits.MaxLabelCells); err != nil {
+	if err := validateText(FormatAttribute(attribute), limits.MaxLabelCells); err != nil {
 		return Attribute{}, parseError(line, 1, err.Error())
 	}
 	return attribute, nil
+}
+
+type attributeToken struct {
+	text   string
+	column int
+}
+
+func attributeTokens(text string) []attributeToken {
+	tokens := make([]attributeToken, 0, 7)
+	for offset := 0; offset < len(text); {
+		for offset < len(text) {
+			r, size := utf8.DecodeRuneInString(text[offset:])
+			if !unicode.IsSpace(r) {
+				break
+			}
+			offset += size
+		}
+		start := offset
+		for offset < len(text) {
+			r, size := utf8.DecodeRuneInString(text[offset:])
+			if unicode.IsSpace(r) {
+				break
+			}
+			offset += size
+		}
+		if start < offset {
+			tokens = append(tokens, attributeToken{text: text[start:offset], column: start + 1})
+		}
+	}
+	return tokens
 }
 
 func appendAttribute(diagram *Diagram, entityIndex int, attribute Attribute, limits Limits, total *int, line sourceLine) error {
@@ -434,15 +492,26 @@ func validateText(text string, maxCells int) error {
 	return nil
 }
 
-func renderedAttribute(attribute Attribute) string {
-	prefix := ""
-	if attribute.Key&PrimaryKey != 0 {
-		prefix += "PK "
+func validateSourceCharacters(source string) error {
+	line, column := 1, 1
+	for _, r := range source {
+		if r == '\n' {
+			line, column = line+1, 1
+			continue
+		}
+		if r == ' ' || r == '\t' {
+			column++
+			continue
+		}
+		if unicode.IsSpace(r) {
+			return &ParseError{Line: line, Column: column, Message: "구문 공백은 ASCII space, tab, newline만 허용함"}
+		}
+		if _, err := textcell.RuneWidth(r); err != nil {
+			return &ParseError{Line: line, Column: column, Message: "입력 전체에서 제어 문자 또는 지원하지 않는 text는 사용할 수 없음"}
+		}
+		column++
 	}
-	if attribute.Key&ForeignKey != 0 {
-		prefix += "FK "
-	}
-	return prefix + attribute.Type + " " + attribute.Name
+	return nil
 }
 
 func isIDStart(value byte) bool {

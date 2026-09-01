@@ -2,6 +2,7 @@ package render
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -76,6 +77,57 @@ func TestERASCIIAndDeterminism(t *testing.T) {
 		if renderErr != nil || got != want {
 			t.Fatalf("run=%d err=%v changed=%v", run, renderErr, got != want)
 		}
+	}
+}
+
+func TestERRendersCanonicalAttributeConstraints(t *testing.T) {
+	diagram := &er.Diagram{Entities: []er.Entity{{
+		ID: "A", Label: "A",
+		Attributes: []er.Attribute{{Type: "string", Name: "email", Key: er.ForeignKey | er.PrimaryKey, Constraint: er.NotNull | er.Unique}},
+	}}}
+	unicodeOutput, err := ER(diagram, Options{MaxWidth: 128, MaxHeight: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	asciiOutput, err := ER(diagram, Options{ASCII: true, MaxWidth: 128, MaxHeight: 32})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, output := range []string{unicodeOutput, asciiOutput} {
+		if !strings.Contains(output, "PK FK UNIQUE NOT NULL string email") {
+			t.Fatalf("canonical attribute missing:\n%s", output)
+		}
+	}
+}
+
+func TestERAttributeConstraintLimitsAndHostileBits(t *testing.T) {
+	validAttribute := er.Attribute{Type: strings.Repeat("a", 64), Name: strings.Repeat("b", 9), Key: er.PrimaryKey | er.ForeignKey, Constraint: er.Unique | er.NotNull}
+	if got, err := ER(&er.Diagram{Entities: []er.Entity{{ID: "A", Label: "A", Attributes: []er.Attribute{validAttribute}}}}, Options{MaxWidth: 128, MaxHeight: 16}); err != nil || !strings.Contains(got, er.FormatAttribute(validAttribute)) {
+		t.Fatalf("96-cell attribute output=%q err=%v", got, err)
+	}
+	overwide := validAttribute
+	overwide.Name += "b"
+	for _, attribute := range []er.Attribute{
+		overwide,
+		{Type: "string", Name: "id", Constraint: er.Constraint(4)},
+		{Type: "string", Name: "id", Constraint: er.Unique | er.Constraint(4)},
+		{Type: "string", Name: "id", Key: er.Key(4)},
+		{Type: "string", Name: "id", Key: er.PrimaryKey | er.Key(4)},
+	} {
+		output, err := ER(&er.Diagram{Entities: []er.Entity{{ID: "A", Label: "A", Attributes: []er.Attribute{attribute}}}}, Options{MaxWidth: 512, MaxHeight: 512})
+		if output != "" || !errors.Is(err, ErrInvalidER) {
+			t.Fatalf("attribute=%+v output=%q err=%v", attribute, output, err)
+		}
+	}
+	attributes := make([]er.Attribute, 32)
+	for index := range attributes {
+		attributes[index] = er.Attribute{Type: "string", Name: fmt.Sprintf("a%d", index)}
+	}
+	if _, err := ER(&er.Diagram{Entities: []er.Entity{{ID: "A", Label: "A", Attributes: attributes}}}, Options{MaxWidth: 128, MaxHeight: 64}); err != nil {
+		t.Fatalf("32 attributes rejected: %v", err)
+	}
+	if _, err := ER(&er.Diagram{Entities: []er.Entity{{ID: "A", Label: "A", Attributes: []er.Attribute{validAttribute}}}}, Options{MaxWidth: 99, MaxHeight: 16}); !errors.Is(err, ErrOutputBounds) {
+		t.Fatalf("tight width error=%v", err)
 	}
 }
 

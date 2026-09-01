@@ -59,10 +59,14 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - Activation pair 안에는 message를 넣고 fragment 경계를 넘기지 않는다. Activation을 실제 call stack의 증거처럼 해석하지 않는다.
 - 실제로 독립 실행 가능한 branch를 함께 보여줄 때만 `par label ... and label ... end`를 사용한다.
 - `par` branch의 source/display order를 실행 순서나 happens-before로 설명하지 않는다. 각 branch 내부 순서와 frame 전후 경계만 순서 의미를 가진다.
-- ER entity는 `ID[display label] { ... }`, attribute는 `type name [PK] [FK]`, relationship은 cardinality를 생략하지 않고 명시한다.
+- ER entity는 `ID[display label] { ... }`, attribute는 `type name [PK] [FK] [UNIQUE] [NOT NULL]`, relationship은 cardinality를 생략하지 않고 명시한다.
+- 명시 DDL·ORM schema의 attribute나 constraint가 설명 핵심이면 relationship이 없어도 단일 entity ER table을 사용할 수 있다. 존재하지 않는 relationship은 추가하지 않는다.
+- Field 이름만 있고 schema type·constraint·relation 근거가 없으면 `unknown` attribute를 채운 ER table을 만들지 말고 text-only로 evidence gap을 설명한다.
 - FK marker는 표시 metadata로만 사용한다. Source에서 참조 target·integrity가 확인되지 않았다면 relationship을 추론해 추가하지 않는다.
+- UNIQUE와 NOT NULL은 DDL·ORM schema constraint 또는 명시 schema contract에 직접 존재할 때만 표시한다. `email`, `is_unique`, `required`, non-pointer type, PK 관례, 애플리케이션 중복 검사는 constraint evidence가 아니다.
+- PK에서 NOT NULL을, UNIQUE에서 business identity를 자동 유도하지 않는다. 직접 근거가 없으면 marker를 생략한다.
 - ER relationship label도 evidence가 필요하다. DDL의 `REFERENCES`만 확인되면 `references`처럼 source에 있는 중립 용어를 사용하고, `owns`, `has`, `places` 같은 business verb를 만들지 않는다.
-- Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK=DDL·ORM constraint, cardinality=명시 schema/contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
+- Strong notation은 direct evidence gate를 통과해야 한다: `par`=동시성 primitive·독립 branch, activation=participant lifetime boundary, PK/FK/UNIQUE/NOT NULL=DDL·ORM schema constraint, cardinality=명시 schema/contract. 이름·관례·일반적인 설계는 gate를 통과시키지 않는다.
 - Sequence는 호출 시간 순서가 핵심일 때만 사용한다. Ownership·분기·데이터 이동이 핵심이면 Flowchart를 유지한다.
 - 현재 버전은 class/style/click, Sequence/ER note, advanced ER inheritance·weak entity·inferred cardinality를 지원하지 않는다.
 

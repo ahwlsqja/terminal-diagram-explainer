@@ -133,14 +133,14 @@ func validateER(diagram *er.Diagram) error {
 		totalAttributes += len(entity.Attributes)
 		attributeNames := make(map[string]struct{}, len(entity.Attributes))
 		for attributeIndex, attribute := range entity.Attributes {
-			if !validNodeID(attribute.Type, maxRenderIDBytes) || !validNodeID(attribute.Name, maxRenderIDBytes) || attribute.Key&^(er.PrimaryKey|er.ForeignKey) != 0 {
+			if !validNodeID(attribute.Type, maxRenderIDBytes) || !validNodeID(attribute.Name, maxRenderIDBytes) || attribute.Key&^(er.PrimaryKey|er.ForeignKey) != 0 || attribute.Constraint&^(er.Unique|er.NotNull) != 0 {
 				return fmt.Errorf("%w: entity %d attribute %d", ErrInvalidER, entityIndex, attributeIndex)
 			}
 			if _, exists := attributeNames[attribute.Name]; exists {
 				return fmt.Errorf("%w: duplicate attribute", ErrInvalidER)
 			}
 			attributeNames[attribute.Name] = struct{}{}
-			if width, err := textcell.Width(erAttributeText(attribute)); err != nil || width == 0 || width > maxRenderLabelCells {
+			if width, err := textcell.Width(er.FormatAttribute(attribute)); err != nil || width == 0 || width > maxRenderLabelCells {
 				return fmt.Errorf("%w: attribute text", ErrInvalidER)
 			}
 		}
@@ -275,7 +275,7 @@ func erEntityWidth(entity er.Entity) (int, error) {
 	}
 	width := max(7, labelWidth+4)
 	for _, attribute := range entity.Attributes {
-		attributeWidth, attrErr := textcell.Width(erAttributeText(attribute))
+		attributeWidth, attrErr := textcell.Width(er.FormatAttribute(attribute))
 		if attrErr != nil {
 			return 0, attrErr
 		}
@@ -332,22 +332,11 @@ func drawEREntity(canvas *canvas, entity er.Entity, current placement) error {
 		return err
 	}
 	for index, attribute := range entity.Attributes {
-		if err := canvas.putText(left+2, top+3+index, erAttributeText(attribute)); err != nil {
+		if err := canvas.putText(left+2, top+3+index, er.FormatAttribute(attribute)); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func erAttributeText(attribute er.Attribute) string {
-	prefix := ""
-	if attribute.Key&er.PrimaryKey != 0 {
-		prefix += "PK "
-	}
-	if attribute.Key&er.ForeignKey != 0 {
-		prefix += "FK "
-	}
-	return prefix + attribute.Type + " " + attribute.Name
 }
 
 func erMarkerGlyph(cardinality er.Cardinality) string {

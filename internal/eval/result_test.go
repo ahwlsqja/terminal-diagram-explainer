@@ -48,14 +48,14 @@ func TestValidateResultChecksEvidenceAndRendererReplay(t *testing.T) {
 		{
 			name: "forbidden claim",
 			mutate: func(result *EvaluationResult) {
-				result.Claims[0].Text = "unique email constraint가 있다"
+				result.Claims[0].Text = "cascade delete가 있다"
 			},
 			want: "금지 주장",
 		},
 		{
 			name: "forbidden claim in diagram relationship",
 			mutate: func(result *EvaluationResult) {
-				result.DiagramSource = strings.Replace(result.DiagramSource, "Order : references", "Order : unique email", 1)
+				result.DiagramSource = strings.Replace(result.DiagramSource, "Order : references", "Order : cascade delete", 1)
 				_, renderer, _, err := Replay(result.DiagramSource)
 				if err != nil {
 					t.Fatal(err)
@@ -106,6 +106,18 @@ func TestValidateResultChecksEvidenceAndRendererReplay(t *testing.T) {
 			name: "required notation in comment is not evidence",
 			mutate: func(result *EvaluationResult) {
 				result.DiagramSource = strings.ReplaceAll(result.DiagramSource, "uuid id PK", "uuid id") + "\n%% PK"
+				_, renderer, _, err := Replay(result.DiagramSource)
+				if err != nil {
+					t.Fatal(err)
+				}
+				result.Renderer = renderer
+			},
+			want: "필수 표기",
+		},
+		{
+			name: "constraint notation in comment is not evidence",
+			mutate: func(result *EvaluationResult) {
+				result.DiagramSource = strings.Replace(result.DiagramSource, "text email UNIQUE NOT NULL", "text email NOT NULL", 1) + "\n%% UNIQUE"
 				_, renderer, _, err := Replay(result.DiagramSource)
 				if err != nil {
 					t.Fatal(err)
@@ -285,9 +297,9 @@ func validCustomerOrderResult(t *testing.T, root string) EvaluationResult {
 			{Text: "customers.id와 orders.id는 primary key다.", FactIDs: []string{"F01"}},
 			{Text: "orders.customer_id는 customers.id를 references한다.", FactIDs: []string{"F02"}},
 			{Text: "Customer 하나에는 Order가 0..N이고 Order는 Customer 하나에 속한다.", FactIDs: []string{"F03"}},
-			{Text: "다른 constraint는 제공되지 않았다.", FactIDs: []string{"F04"}},
+			{Text: "customers.email에는 UNIQUE와 NOT NULL이 명시되어 있다.", FactIDs: []string{"F04"}},
 		},
-		FinalAnswer: "명시된 PK, FK, cardinality만 설명한다.\n" + renderer.Stdout,
+		FinalAnswer: "명시된 PK, FK, UNIQUE, NOT NULL, cardinality만 설명한다.\n" + renderer.Stdout,
 	}
 }
 

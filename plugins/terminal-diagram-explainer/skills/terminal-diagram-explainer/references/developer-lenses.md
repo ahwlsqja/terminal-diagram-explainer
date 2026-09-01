@@ -55,7 +55,11 @@ Participant가 실제로 처리 중인 구간이 source에서 확인되면 `acti
 
 Entity·table ownership과 cardinality가 핵심이면 ER Diagram을 사용한다. PK/FK marker와 relationship은 source에서 각각 확인하고, FK 이름만 보고 target 관계를 추론하지 않는다.
 
+명시 schema의 attribute·constraint 자체가 핵심이면 관계가 없는 단일 entity ER도 유효하다. 반대로 field 이름만 있고 type·constraint·relation source가 없으면 ER을 만들지 않는다.
+
 ER relationship label은 schema·annotation·query에서 확인된 용어를 사용한다. DDL `REFERENCES`만 있으면 `references`로 표시하고 business ownership verb를 새로 만들지 않는다.
+
+UNIQUE와 NOT NULL은 DDL·ORM schema constraint 또는 명시 schema contract에서 각각 확인한다. Field 이름, 언어 type, validation code, 중복 선조회는 DB constraint를 보장하지 않는다.
 
 ## Worker·비동기 처리
 

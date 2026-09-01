@@ -76,6 +76,15 @@
 - Report는 입력 순서와 무관한 canonical JSON이며 exact rational score variance, case별 artifact distinct count와 safe failure code만 기록합니다.
 - Digest binding은 corpus와 artifact 불일치를 검출하지만 evaluator 신원이나 독립 실행 freshness를 인증하지 않습니다.
 
+## 10. ER Attribute Constraints — 완료 (0.11.0)
+
+- `Key`와 분리된 constraint bitset으로 `UNIQUE`, `NOT NULL`을 표현합니다.
+- `PK`, `FK`, `UNIQUE`, `NOT NULL` marker unit의 입력 순서는 자유이며 renderer는 `PK FK UNIQUE NOT NULL type name`으로 정규화합니다.
+- Parser와 renderer가 단일 attribute formatter를 공유해 96-cell width와 direct-AST 검증의 drift를 막습니다.
+- PK·field 이름·언어 type에서 constraint를 추론하지 않고 explicit DDL·ORM schema evidence만 표시합니다.
+- Unknown marker/bit, duplicate·부분 `NOT NULL`, lowercase marker, `DEFAULT`·`CHECK`, source control·bidi를 fail-closed 처리합니다.
+- 기존 18-case corpus의 positive schema와 negative name-only case를 확장해 strong-notation evidence gate를 유지합니다.
+
 ## 공통 완료 게이트
 
 - parser/renderer fuzz, race, vet, offline build

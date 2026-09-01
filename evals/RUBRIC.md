@@ -25,7 +25,7 @@
 - Source fact에 없는 component, relationship, cardinality, retry, idempotency, ordering 또는 security guarantee 생성
 - 동시성 primitive 없이 `par` 사용
 - Participant lifetime evidence 없이 `activate/deactivate` 사용
-- Field 이름만 보고 PK/FK 또는 ER relationship 추론
+- Field 이름·type·관례만 보고 PK/FK/UNIQUE/NOT NULL 또는 ER relationship 추론
 - Secret, credential, PII 또는 내부 hostname 노출
 - Renderer 실패 source를 성공 도식처럼 제시하거나 renderer stdout을 수동 편집
 - Required fact가 빠진 상태에서 전체 흐름이나 보장을 단정
@@ -93,7 +93,7 @@ Submission의 축약 형태:
 ```json
 {
   "schema": "eval-pack.batch.v1",
-  "subject_id": "terminal-diagram-explainer-0.10.0",
+  "subject_id": "terminal-diagram-explainer-0.11.0",
   "corpus_digest": "<64 lowercase hex>",
   "runs": [
     {
@@ -110,7 +110,7 @@ Review의 축약 형태:
 {
   "schema": "eval-pack.review.v1",
   "evaluator_id": "independent-evaluator-01",
-  "subject_id": "terminal-diagram-explainer-0.10.0",
+  "subject_id": "terminal-diagram-explainer-0.11.0",
   "corpus_digest": "<binding corpus_digest>",
   "submission_digest": "<binding submission_digest>",
   "reviews": [

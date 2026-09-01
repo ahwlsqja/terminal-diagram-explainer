@@ -1,4 +1,4 @@
-# 0.8 문법
+# 0.11 문법
 
 ## Header
 
@@ -153,7 +153,7 @@ erDiagram
 Customer ||--o{ Order : places orders
 Customer[고객] {
   uuid id PK
-  string email
+  string email UNIQUE NOT NULL
 }
 Order[주문] {
   uuid id PK
@@ -164,8 +164,11 @@ Audit[감사] {}
 
 - Header는 정확히 `erDiagram`입니다.
 - Entity는 `ID {` 또는 `ID[display label] {`로 열고 exact `}`로 닫습니다. Empty/disconnected entity도 허용합니다.
-- Attribute는 `type name`, `type name PK`, `type name FK`, `type name PK FK`를 지원합니다.
-- Attribute type/name은 ASCII ID이고 name은 entity 안에서 유일합니다. PK/FK는 표시 metadata이며 relationship이나 target을 자동 추론하지 않습니다.
+- Attribute는 `type name [PK] [FK] [UNIQUE] [NOT NULL]`을 지원합니다. Marker unit 순서는 자유지만 각 marker는 한 번만 허용하며 출력은 `PK FK UNIQUE NOT NULL type name` 순서입니다.
+- `NOT NULL`은 인접한 두 token으로 이루어진 하나의 marker입니다. Marker는 대문자 exact form만 허용합니다.
+- ER 구문의 공백 separator는 ASCII space, tab, LF/CRLF만 허용하며 NBSP·Unicode line/paragraph separator는 거부합니다.
+- Attribute type/name은 ASCII ID이고 name은 entity 안에서 유일합니다. PK/FK/UNIQUE/NOT NULL은 표시 metadata이며 relationship, target 또는 다른 constraint를 자동 추론하지 않습니다.
+- `DEFAULT`, `CHECK`, `PRIMARY KEY`, composite/table-level `UNIQUE`·FK는 지원하지 않습니다.
 - Relationship은 `From <left-marker>--<right-marker> To : label` 형식입니다. Entity block보다 앞에 쓸 수 있지만 EOF까지 모든 endpoint block이 명시되어야 합니다.
 - Left marker: `o|`=0..1, `||`=1, `}o`=0..N, `}|`=1..N.
 - Right marker: `|o`=0..1, `||`=1, `o{`=0..N, `|{`=1..N.
@@ -176,7 +179,8 @@ Audit[감사] {}
 ## Rejected input
 
 - invalid UTF-8
-- NUL, ESC, C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
-- 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
+- NUL, ESC, 구조 whitespace인 LF·tab·CRLF을 제외한 C0/C1 control, Unicode format/bidi control, ZWJ, variation selector
+- ER syntax separator 위치의 NBSP와 기타 Unicode whitespace
+- 렌더되는 label에서 선행 결합 문자 또는 한 base 뒤 8개를 초과한 combining marks
 - `classDef`, `style`, `click`, HTML/Markdown labels
 - Sequence/ER note, ER relationship attributes·inheritance·weak entity·inferred cardinality, Flow 방향 `RL`, `BT`

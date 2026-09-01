@@ -299,6 +299,12 @@ func analyze(source string) (sourceAnalysis, error) {
 				if attr.Key&er.ForeignKey != 0 {
 					features["FK"] = true
 				}
+				if attr.Constraint&er.Unique != 0 {
+					features["UNIQUE"] = true
+				}
+				if attr.Constraint&er.NotNull != 0 {
+					features["NOT NULL"] = true
+				}
 			}
 		}
 		for _, relation := range diagram.Relationships {
