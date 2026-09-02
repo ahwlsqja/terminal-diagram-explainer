@@ -158,6 +158,12 @@
 - Runtime package download, CDN, Playwright, Chromium과 remote Mermaid service를 사용하지 않습니다.
 - 실제 Flow·Sequence·ER·State 215개를 1024-dark·736-light·360-dark에서 645회 렌더하고, narrow fit 50% 미만 106개는 100% zoom·pan·selection-collapse screenshot까지 재생하는 corpus를 repo에 고정합니다.
 
+## 19. TUI-visible fallback — 완료 (0.19.1)
+
+- `render_diagram` 성공 결과가 bounded terminal preview와 `/app` 안내를 함께 반환해 MCP Apps iframe이 없는 Codex CLI/TUI에서도 결과가 보입니다.
+- Skill은 tool call 성공과 UI mount 성공을 구분하며, TUI에서는 `terminalFallback`을 최종 답변에 반복하고 inline UI가 보인다고 주장하지 않습니다.
+- Desktop App의 interactive UI, UI resource link와 기존 artifact fallback은 유지합니다.
+
 ## 후속 시각 품질 과제
 
 - Dense scoped LR의 outer corridor는 endpoint manifest로 topology를 보존하지만 polyline이 길고 subgraph frame과 같은 stroke를 사용해 scan cost가 큽니다. LCA 내부 compact route search 또는 SVG semantic styling을 별도 개선으로 다룹니다.

@@ -14,7 +14,7 @@ Go fallback renderer는 Codex가 생성한 작은 설명용 Flowchart, Sequence,
 - Widget은 `default-src 'none'`, `connect-src 'none'`, `img-src data: blob:`, `frame-src 'none'` CSP를 포함하며 외부 script·font·network resource를 로드하지 않습니다.
 - Mermaid가 만든 SVG에서도 `script`, `foreignObject`, `image`, link/event handler와 CSS `url()` attribute를 제거합니다.
 - UI resource는 presentation layer입니다. Fact ledger와 source of truth는 Skill/model context에 있고 widget state는 authoritative data가 아닙니다.
-- MCP Apps UI가 없는 client에서는 text/structured result와 기존 artifact renderer로 fallback합니다.
+- MCP Apps UI가 없는 client에서는 local `term-diagram` binary를 5초·2 MiB 제한으로 실행한 terminal preview, text/structured result와 기존 artifact renderer로 fallback합니다. Renderer stderr와 local path는 tool result에 노출하지 않습니다.
 
 ### Terminal fallback path
 

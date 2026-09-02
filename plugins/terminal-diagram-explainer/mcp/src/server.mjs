@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
+import { spawnSync } from "node:child_process";
+import { accessSync, constants as fsConstants } from "node:fs";
 import { readFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import readline from "node:readline";
 
 import { validateRenderInput } from "./source-policy.mjs";
 
 const SERVER_NAME = "terminal-diagram-explainer";
-const SERVER_VERSION = "0.19.0";
+const SERVER_VERSION = "0.19.1";
 const UI_URI = "ui://terminal-diagram-explainer/viewer-v1.html";
 const UI_MIME_TYPE = "text/html;profile=mcp-app";
 const widgetUrl = new URL("../dist/widget.html", import.meta.url);
@@ -48,8 +52,10 @@ const tool = {
       source: { type: "string" },
       title: { type: "string" },
       theme: { type: "string", enum: ["auto", "light", "dark"] },
+      terminalFallback: { type: "string" },
+      uiHint: { type: "string" },
     },
-    required: ["source", "title", "theme"],
+    required: ["source", "title", "theme", "terminalFallback", "uiHint"],
   },
   annotations: {
     readOnlyHint: true,
@@ -72,6 +78,77 @@ const resource = {
   description: "A sandboxed Mermaid viewer with pan, zoom, fit, and source inspection.",
   mimeType: UI_MIME_TYPE,
 };
+
+const UI_HINT =
+  "Codex TUI에서는 /app으로 같은 세션을 Desktop App에서 열어 inline UI를 확인하세요.";
+
+function rendererCommand() {
+  const configured = process.env.TERM_DIAGRAM_BIN;
+  const candidates = [
+    configured,
+    process.env.CODEX_HOME ? path.join(process.env.CODEX_HOME, "bin", "term-diagram") : null,
+    path.join(os.homedir(), ".codex", "bin", "term-diagram"),
+  ].filter(Boolean);
+  for (const binary of candidates) {
+    try {
+      accessSync(binary, fsConstants.X_OK);
+      let prefixArgs = [];
+      if (binary === configured && process.env.TERM_DIAGRAM_PREFIX_ARGS_JSON) {
+        const parsed = JSON.parse(process.env.TERM_DIAGRAM_PREFIX_ARGS_JSON);
+        if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) {
+          prefixArgs = parsed;
+        }
+      }
+      return { binary, prefixArgs };
+    } catch {
+      // Try the next deterministic local candidate.
+    }
+  }
+  return null;
+}
+
+function renderTerminalFallback(source) {
+  const command = rendererCommand();
+  if (!command) return "";
+  const result = spawnSync(
+    command.binary,
+    [...command.prefixArgs, "-width", "120", "-height", "200", "-fit"],
+    {
+      input: source,
+      encoding: "utf8",
+      timeout: 5000,
+      maxBuffer: 2 * 1024 * 1024,
+      windowsHide: true,
+    },
+  );
+  if (result.status !== 0 || result.error || typeof result.stdout !== "string") return "";
+  return result.stdout.trimEnd();
+}
+
+function toolResult(output) {
+  const terminalFallback = renderTerminalFallback(output.source);
+  const safeFallback = terminalFallback.replaceAll("```", "` ` `");
+  const preview = terminalFallback
+    ? `\n\nTerminal preview:\n\`\`\`text\n${safeFallback}\n\`\`\``
+    : "\n\nTerminal preview를 생성하지 못했습니다. /app으로 Desktop App에서 inline UI를 확인하세요.";
+  return {
+    content: [
+      {
+        type: "text",
+        text: `Rendered interactive diagram: ${output.title}\n${UI_HINT}${preview}`,
+      },
+      {
+        type: "resource_link",
+        uri: UI_URI,
+        name: "Interactive software diagram",
+        title: output.title,
+        description: "Open the interactive Mermaid diagram in an MCP Apps compatible host.",
+        mimeType: UI_MIME_TYPE,
+      },
+    ],
+    structuredContent: { ...output, terminalFallback, uiHint: UI_HINT },
+  };
+}
 
 function resultFor(method, params) {
   switch (method) {
@@ -114,10 +191,7 @@ function resultFor(method, params) {
       if (params?.name !== tool.name) throw rpcError(-32602, "unknown tool");
       try {
         const output = validateRenderInput(params.arguments);
-        return {
-          content: [{ type: "text", text: `Rendered interactive diagram: ${output.title}` }],
-          structuredContent: output,
-        };
+        return toolResult(output);
       } catch (error) {
         return {
           isError: true,

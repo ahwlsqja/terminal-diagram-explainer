@@ -1,6 +1,6 @@
 {
   "name": "terminal-diagram-explainer",
-  "version": "0.19.0+codex.20260901201840",
+  "version": "0.19.1+codex.20260902044920",
   "description": "복잡한 소프트웨어 흐름을 interactive Mermaid UI와 bounded fallback 도식으로 설명합니다.",
   "author": {
     "name": "ahwlsqja"

@@ -11,6 +11,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 function startServer() {
   const child = spawn(process.execPath, ["src/server.mjs"], {
     cwd: root,
+    env: {
+      ...process.env,
+      TERM_DIAGRAM_BIN: process.execPath,
+      TERM_DIAGRAM_PREFIX_ARGS_JSON: JSON.stringify(["test/fake-term-diagram.mjs"]),
+    },
     stdio: ["pipe", "pipe", "pipe"],
   });
   const pending = new Map();
@@ -109,8 +114,14 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
     source: "flowchart LR\nA[Request] --> B[Response]",
     title: "Request path",
     theme: "auto",
+    terminalFallback: "[Request] ---> [Response]",
+    uiHint: "Codex TUI에서는 /app으로 같은 세션을 Desktop App에서 열어 inline UI를 확인하세요.",
   });
   assert.match(rendered.result.content[0].text, /Request path/);
+  assert.match(rendered.result.content[0].text, /```text\n\[Request\] ---> \[Response\]\n```/);
+  assert.match(rendered.result.content[0].text, /\/app/);
+  assert.equal(rendered.result.content[1].type, "resource_link");
+  assert.equal(rendered.result.content[1].uri, "ui://terminal-diagram-explainer/viewer-v1.html");
 
   const rejected = await server.request("tools/call", {
     name: "render_diagram",

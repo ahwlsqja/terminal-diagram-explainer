@@ -94,8 +94,10 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 1. `render_diagram` MCP tool이 있으면 `{source, title, theme: "auto"}`로 호출한다. 이 결과의 interactive UI가 기본 도식이다.
 2. Tool은 Flowchart·Sequence·ER·State의 표준 Mermaid source만 받는다. `policy` custom statement, ER display alias/table constraint처럼 표준 Mermaid가 아닌 metadata는 source에 넣지 말고 단계별 해설에 보존한다.
-3. MCP Apps UI가 없는 client에서도 tool의 text/structured result가 남는다. UI가 실제로 표시되지 않거나 tool이 없을 때만 아래 artifact fallback을 실행한다.
-4. Artifact 변환기도 없을 때만 terminal text를 사용한다.
+3. Codex CLI/TUI는 MCP Apps iframe을 inline으로 표시하지 않는다. Tool의 `structuredContent.terminalFallback`을 최종 답변의 `text` code fence로 반드시 다시 보여주고, 더 선명한 graphical UI는 `/app`으로 같은 세션을 Desktop App에서 열 수 있다고 안내한다. TUI에서 "위에 interactive diagram이 보인다"고 말하지 않는다.
+4. Desktop App처럼 MCP Apps UI를 실제로 표시하는 host에서는 terminal preview를 최종 답변에 중복하지 않는다.
+5. Tool이 없거나 `terminalFallback`이 비어 있고 UI도 표시되지 않는 surface에서만 아래 artifact fallback을 실행한다.
+6. Artifact 변환기도 없을 때만 terminal text renderer를 직접 사용한다.
 
 그래픽 source의 안전한 표준 문법은 [references/graphic-grammar.md](references/graphic-grammar.md)를 따른다. `click`, external image/icon, `url()`, `@import`, init directive, `themeCSS`, active HTML은 만들지 않는다.
 
@@ -106,7 +108,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 printf '%s\n' "$diagram_source" | scripts/render-artifacts.sh
 ```
 
-- MCP UI가 성공한 경우 PNG·HTML을 중복 첨부하지 않는다. Fallback을 실행한 경우에만 성공 stdout JSON의 `png` 경로를 `view_image` 같은 local image 도구로 읽어 image block으로 첨부한다.
+- MCP UI가 실제로 표시된 경우 PNG·HTML을 중복 첨부하지 않는다. Tool call 성공만으로 UI 표시 성공을 추정하지 않는다. Fallback을 실행한 경우에만 성공 stdout JSON의 `png` 경로를 `view_image` 같은 local image 도구로 읽어 image block으로 첨부한다.
 - 같은 JSON의 `html` 절대 경로를 `Interactive HTML로 열기` Markdown 링크로 함께 제공해 사용자가 pan·zoom·fit viewer를 선택할 수 있게 한다. 사용자가 inline image만 요청하면 HTML 링크를 생략할 수 있다.
 - Feedback/cycle이 2개 이상이거나 node가 8개 이상인 복잡한 도식은 PNG 미리보기와 HTML 링크를 모두 제공한다. 단순 도식은 PNG를 우선한다.
 - SVG/XML source나 PNG 경로 문자열을 최종 답변 본문에 붙이지 않는다.

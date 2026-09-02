@@ -12,7 +12,7 @@
 
 ## Graphical UI
 
-Codex Desktop의 지원 surface에서는 Skill이 표준 Mermaid source를 `render_diagram` MCP tool에 전달합니다. Tool은 외부 network 없이 bundled Mermaid로 SVG를 만들며, source 확인과 pan·zoom·fit을 한 화면에서 제공합니다. UI를 표시하지 않는 client에서도 tool 결과가 text와 structured data로 남고 기존 artifact path가 fallback합니다.
+Codex Desktop의 지원 surface에서는 Skill이 표준 Mermaid source를 `render_diagram` MCP tool에 전달합니다. Tool은 외부 network 없이 bundled Mermaid로 SVG를 만들며, source 확인과 pan·zoom·fit을 한 화면에서 제공합니다. Codex CLI/TUI는 MCP Apps iframe을 표시하지 않으므로 tool result에 bounded terminal preview와 `/app` 안내를 함께 반환합니다. 다른 UI 미지원 client에서도 text·structured result와 기존 artifact path가 fallback합니다.
 
 Graphical source는 standard Mermaid 11을 사용하되 Skill은 software explanation에 필요한 Flowchart·Sequence·ER·State로 제한합니다. `click`, remote image/icon, CSS URL/import, init directive, active HTML은 server와 widget 양쪽에서 거부합니다.
 
