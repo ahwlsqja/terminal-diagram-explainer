@@ -1,0 +1,16 @@
+{
+  "securityLevel": "strict",
+  "htmlLabels": false,
+  "maxEdges": 200,
+  "maxTextSize": 250000,
+  "flowchart": {
+    "htmlLabels": false,
+    "nodeSpacing": 50,
+    "rankSpacing": 60,
+    "padding": 16,
+    "wrappingWidth": 240
+  },
+  "class": {
+    "htmlLabels": false
+  }
+}

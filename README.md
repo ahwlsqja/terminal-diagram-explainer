@@ -5,14 +5,15 @@
 구성은 세 부분으로 나뉩니다.
 
 - `render_diagram`: Mermaid가 bundled된 sandboxed MCP App에서 semantic SVG를 만들고 pan·zoom·fit·source 전환 UI로 보여주는 기본 경로
-- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 bounded Flowchart·Sequence·ER·State → Unicode/ASCII/SVG renderer
-- `terminal-diagram-explainer`: 시각화 요청을 MCP UI로 보내고 UI가 없는 surface에서 PNG·HTML·terminal 순으로 fallback하는 Codex Skill
+- `mermaid-cli`: 개인 `$CODEX_HOME`에 exact lockfile로 설치되어 Codex image block과 저장형 SVG·PNG를 Mermaid semantic layout으로 생성하는 선택적 runtime
+- `term-diagram`: 외부 Go 모듈, 네트워크, subprocess, CGO가 없는 최종 bounded Flowchart·Sequence·ER·State → Unicode/ASCII/SVG fallback
+- `terminal-diagram-explainer`: 시각화 요청을 MCP UI로 보내고 UI가 없는 surface에서 Mermaid PNG·HTML, 마지막으로 terminal 순으로 fallback하는 Codex Skill
 
 플러그인은 표현 방식만 추가하며 프로젝트의 `AGENTS.md`, SDLC, workflow 또는 repo-local Skill을 변경하지 않습니다.
 
 ## Graphical UI
 
-Codex Desktop의 지원 surface에서는 Skill이 표준 Mermaid source를 `render_diagram` MCP tool에 전달합니다. Tool은 외부 network 없이 bundled Mermaid로 SVG를 만들며, source 확인과 pan·zoom·fit을 한 화면에서 제공합니다. Codex CLI/TUI는 MCP Apps iframe을 표시하지 않으므로 tool result에 bounded terminal preview와 `/app` 안내를 함께 반환합니다. 다른 UI 미지원 client에서도 text·structured result와 기존 artifact path가 fallback합니다.
+Codex Desktop의 지원 surface에서는 Skill이 표준 Mermaid source를 `render_diagram` MCP tool에 전달합니다. Tool은 외부 network 없이 bundled Mermaid로 SVG를 만들며, source 확인과 pan·zoom·fit을 한 화면에서 제공합니다. Codex CLI/TUI는 MCP Apps iframe을 표시하지 않으므로 tool result에 official Mermaid CLI가 만든 PNG image block과 `/app` 안내를 반환합니다. Mermaid CLI를 사용할 수 없을 때만 bounded terminal preview로 내려갑니다. 저장형 HTML도 같은 bundled Mermaid viewer를 standalone으로 실행하므로 터미널 geometry를 확대하지 않습니다.
 
 Graphical source는 standard Mermaid 11을 사용하되 Skill은 software explanation에 필요한 Flowchart·Sequence·ER·State로 제한합니다. `click`, remote image/icon, CSS URL/import, init directive, active HTML은 server와 widget 양쪽에서 거부합니다.
 
@@ -145,7 +146,7 @@ printf '%s\n' "$diagram_source" | term-diagram -format svg -width 120 -height 20
 printf '%s\n' "$diagram_source" | term-diagram -format html -width 120 -height 200 -fit > diagram.html
 ```
 
-Codex plugin wrapper는 코드 블록 soft-wrap과 font line-height 단절을 피하기 위해 120×200 Flow auto-fit SVG를 만들고, `sips`(macOS)·`rsvg-convert`·ImageMagick 중 설치된 로컬 변환기로 PNG를 생성합니다. 같은 geometry를 pan·zoom·fit 가능한 self-contained HTML로도 제공하며 네트워크 다운로드는 수행하지 않습니다.
+Codex plugin wrapper는 먼저 exact `@mermaid-js/mermaid-cli@11.16.0` runtime으로 semantic SVG·PNG를 만들고, bundled Mermaid를 포함한 self-contained HTML viewer를 제공합니다. 렌더 도중 네트워크 다운로드나 외부 asset load는 없습니다. CLI가 없거나 실패할 때만 120×200 Flow auto-fit Go SVG와 `sips`·`rsvg-convert`·ImageMagick 변환기로 내려갑니다.
 
 `evals/prompts.json`에는 agent에게 전달할 backend/core 설명 18개가 있고, `evals/oracles.json`에는 평가할 때만 읽는 기준이 분리되어 있습니다. Reference diagram은 실제 parser/renderer로 재생하며 strong notation evidence gate, text-only 선택, SSoT·ordering·security·redaction case를 검증합니다.
 
@@ -169,7 +170,7 @@ go run ./cmd/eval-pack -root . -batch submission.json -review review.json > repo
 
 ## 설치
 
-Go 1.25 이상, Node.js 20 이상, Codex CLI가 필요합니다. Graphical MCP runtime은 plugin에 build artifact로 포함되고 fallback renderer는 `$CODEX_HOME/bin/term-diagram`에 설치됩니다.
+Go 1.25 이상, Node.js 22.12 이상, Codex CLI가 필요합니다. Node 하한은 audit-clean Puppeteer 25 runtime 때문에 적용합니다. Graphical MCP runtime은 plugin build artifact에 포함됩니다. `scripts/install-local.sh`는 최종 terminal renderer를 `$CODEX_HOME/bin/term-diagram`에, official Mermaid CLI와 호환 Chromium을 `$CODEX_HOME/lib/terminal-diagram-explainer` 아래 immutable 개인 runtime으로 설치합니다. CLI runtime은 plugin이나 Git repository에 포함되지 않습니다.
 
 ```bash
 scripts/install-local.sh

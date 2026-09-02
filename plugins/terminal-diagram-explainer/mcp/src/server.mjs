@@ -7,10 +7,11 @@ import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
+import { renderMermaidArtifact } from "./mermaid-cli.mjs";
 import { validateRenderInput } from "./source-policy.mjs";
 
 const SERVER_NAME = "terminal-diagram-explainer";
-const SERVER_VERSION = "0.19.1";
+const SERVER_VERSION = "0.20.0";
 const UI_URI = "ui://terminal-diagram-explainer/viewer-v1.html";
 const UI_MIME_TYPE = "text/html;profile=mcp-app";
 const widgetUrl = new URL("../dist/widget.html", import.meta.url);
@@ -126,26 +127,41 @@ function renderTerminalFallback(source) {
 }
 
 function toolResult(output) {
-  const terminalFallback = renderTerminalFallback(output.source);
+  let png = null;
+  try {
+    png = renderMermaidArtifact(output.source, {
+      format: "png",
+      theme: output.theme === "dark" ? "dark" : "light",
+    });
+  } catch {
+    // The interactive resource and terminal renderer remain available without the optional CLI.
+  }
+  const terminalFallback = png ? "" : renderTerminalFallback(output.source);
   const safeFallback = terminalFallback.replaceAll("```", "` ` `");
-  const preview = terminalFallback
-    ? `\n\nTerminal preview:\n\`\`\`text\n${safeFallback}\n\`\`\``
-    : "\n\nTerminal preview를 생성하지 못했습니다. /app으로 Desktop App에서 inline UI를 확인하세요.";
+  const preview = png
+    ? "\n\nOfficial Mermaid CLI로 PNG 미리보기를 생성했습니다."
+    : terminalFallback
+      ? `\n\nMermaid CLI를 사용할 수 없어 terminal fallback을 표시합니다:\n\`\`\`text\n${safeFallback}\n\`\`\``
+      : "\n\n그래픽·terminal 미리보기를 생성하지 못했습니다. /app으로 Desktop App에서 inline UI를 확인하세요.";
+  const content = [
+    {
+      type: "text",
+      text: `Rendered interactive diagram: ${output.title}\n${UI_HINT}${preview}`,
+    },
+  ];
+  if (png) {
+    content.push({ type: "image", data: png.toString("base64"), mimeType: "image/png" });
+  }
+  content.push({
+    type: "resource_link",
+    uri: UI_URI,
+    name: "Interactive software diagram",
+    title: output.title,
+    description: "Open the interactive Mermaid diagram in an MCP Apps compatible host.",
+    mimeType: UI_MIME_TYPE,
+  });
   return {
-    content: [
-      {
-        type: "text",
-        text: `Rendered interactive diagram: ${output.title}\n${UI_HINT}${preview}`,
-      },
-      {
-        type: "resource_link",
-        uri: UI_URI,
-        name: "Interactive software diagram",
-        title: output.title,
-        description: "Open the interactive Mermaid diagram in an MCP Apps compatible host.",
-        mimeType: UI_MIME_TYPE,
-      },
-    ],
+    content,
     structuredContent: { ...output, terminalFallback, uiHint: UI_HINT },
   };
 }

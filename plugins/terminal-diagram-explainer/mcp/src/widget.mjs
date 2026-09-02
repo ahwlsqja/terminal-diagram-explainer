@@ -44,7 +44,7 @@ function fit() {
   scale = Math.min(
     Math.max((viewport.clientWidth - padding * 2) / naturalWidth, 0.1),
     Math.max((viewport.clientHeight - padding * 2) / naturalHeight, 0.1),
-    1,
+    1.6,
   );
   offsetX = (viewport.clientWidth - naturalWidth * scale) / 2;
   offsetY = (viewport.clientHeight - naturalHeight * scale) / 2;
@@ -110,7 +110,7 @@ async function render(nextPayload) {
     startOnLoad: false,
     securityLevel: "strict",
     suppressErrorRendering: true,
-    theme: theme === "dark" ? "dark" : "default",
+    theme: theme === "dark" ? "dark" : "neutral",
     maxTextSize: 250000,
     maxEdges: 200,
     flowchart: {
@@ -251,7 +251,7 @@ new ResizeObserver(() => {
 }).observe(viewport);
 
 const app = new App(
-  { name: "terminal-diagram-explainer", version: "0.19.1" },
+  { name: "terminal-diagram-explainer", version: "0.20.0" },
   {},
   { autoResize: true, strict: true },
 );
@@ -259,15 +259,16 @@ app.addEventListener("toolinput", (params) => scheduleRender(params.arguments));
 app.addEventListener("toolresult", (params) => scheduleRender(params.structuredContent));
 app.addEventListener("hostcontextchanged", applyHostContext);
 
-const compatibilityPayload = window.openai?.toolOutput ?? window.openai?.toolInput;
-if (compatibilityPayload) scheduleRender(compatibilityPayload);
-if (window.__TERMINAL_DIAGRAM_TEST_PAYLOAD__) {
-  scheduleRender(window.__TERMINAL_DIAGRAM_TEST_PAYLOAD__);
+const standalonePayload = window.__TERMINAL_DIAGRAM_STANDALONE_PAYLOAD__;
+if (standalonePayload) {
+  scheduleRender(standalonePayload);
+} else {
+  const compatibilityPayload = window.openai?.toolOutput ?? window.openai?.toolInput;
+  if (compatibilityPayload) scheduleRender(compatibilityPayload);
+  app.connect().then(() => applyHostContext(app.getHostContext())).catch((error) => {
+    if (!payload) {
+      status.textContent = error instanceof Error ? error.message : "MCP Apps bridge unavailable.";
+      status.dataset.state = "error";
+    }
+  });
 }
-
-app.connect().then(() => applyHostContext(app.getHostContext())).catch((error) => {
-  if (!payload) {
-    status.textContent = error instanceof Error ? error.message : "MCP Apps bridge unavailable.";
-    status.dataset.state = "error";
-  }
-});

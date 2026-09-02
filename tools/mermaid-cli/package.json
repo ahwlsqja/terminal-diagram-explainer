@@ -1,0 +1,11 @@
+{
+  "name": "terminal-diagram-explainer-mermaid-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pinned personal runtime for Terminal Diagram Explainer",
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@mermaid-js/mermaid-cli": "11.16.0",
+    "puppeteer": "25.9.0"
+  }
+}

@@ -164,6 +164,13 @@
 - Skill은 tool call 성공과 UI mount 성공을 구분하며, TUI에서는 `terminalFallback`을 최종 답변에 반복하고 inline UI가 보인다고 주장하지 않습니다.
 - Desktop App의 interactive UI, UI resource link와 기존 artifact fallback은 유지합니다.
 
+## 20. Official Mermaid artifact fallback — 완료 (0.20.0)
+
+- Codex CLI/TUI tool result에 `@mermaid-js/mermaid-cli@11.16.0`이 만든 PNG image block을 반환합니다.
+- 저장형 SVG·PNG는 Mermaid semantic layout을 사용하고, HTML은 bundled Mermaid standalone viewer를 사용합니다.
+- `mmdc`와 Puppeteer는 exact lockfile로 `$CODEX_HOME`에 개인 설치하며 plugin·repository에는 browser나 `node_modules`를 재배포하지 않습니다.
+- `mmdc`가 없거나 실패할 때만 기존 bounded Go renderer로 내려갑니다.
+
 ## 후속 시각 품질 과제
 
 - Dense scoped LR의 outer corridor는 endpoint manifest로 topology를 보존하지만 polyline이 길고 subgraph frame과 같은 stroke를 사용해 scan cost가 큽니다. LCA 내부 compact route search 또는 SVG semantic styling을 별도 개선으로 다룹니다.

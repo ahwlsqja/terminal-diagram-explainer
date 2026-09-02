@@ -14,7 +14,7 @@ Go fallback renderer는 Codex가 생성한 작은 설명용 Flowchart, Sequence,
 - Widget은 `default-src 'none'`, `connect-src 'none'`, `img-src data: blob:`, `frame-src 'none'` CSP를 포함하며 외부 script·font·network resource를 로드하지 않습니다.
 - Mermaid가 만든 SVG에서도 `script`, `foreignObject`, `image`, link/event handler와 CSS `url()` attribute를 제거합니다.
 - UI resource는 presentation layer입니다. Fact ledger와 source of truth는 Skill/model context에 있고 widget state는 authoritative data가 아닙니다.
-- MCP Apps UI가 없는 client에서는 local `term-diagram` binary를 5초·2 MiB 제한으로 실행한 terminal preview, text/structured result와 기존 artifact renderer로 fallback합니다. Renderer stderr와 local path는 tool result에 노출하지 않습니다.
+- MCP Apps UI가 없는 client에서는 pinned local `mermaid-cli`로 만든 PNG image block을 우선 반환합니다. CLI가 없거나 실패하면 local `term-diagram` binary를 5초·2 MiB 제한으로 실행한 terminal preview와 text/structured result로 fallback합니다. Renderer stderr와 local path는 tool result에 노출하지 않습니다.
 
 ### Terminal fallback path
 
@@ -31,7 +31,7 @@ Go fallback renderer는 Codex가 생성한 작은 설명용 Flowchart, Sequence,
 - invalid/unsupported syntax는 line/column이 있는 오류로 fail-closed 처리합니다.
 - 입력 검증·파싱·렌더 실패는 stdout에 아무것도 기록하지 않습니다. OS·pipe·writer가 실제 쓰기 도중 실패한 경우에는 이미 전달된 byte를 회수할 수 없으므로 exit code 1과 stderr 진단으로 알립니다.
 - label의 terminal control·bidi·format 문자는 렌더 전에 거부합니다.
-- `term-diagram` binary에는 네트워크, HTTP server, shell, subprocess, environment-driven behavior, runtime file write가 없습니다. Plugin의 MCP server는 bundled static widget만 읽고, 선택적 `render-image.sh`/`render-artifacts.sh`만 임시 SVG/PNG/HTML을 만들고 설치된 `sips`·`rsvg-convert`·ImageMagick 중 하나를 호출하며 다운로드하지 않습니다.
+- `term-diagram` binary에는 네트워크, HTTP server, shell, subprocess, environment-driven behavior, runtime file write가 없습니다. Plugin MCP server와 artifact script는 source policy 통과 후 atomic `runtime.json` pointer가 지정한 exact `mermaid-cli@11.16.0`과 release-local Chrome cache만 제한된 고정 인자로 호출합니다. MCP image 생성용 내부 입력·출력은 권한 0600의 격리 temp directory에 두고 20초·8 MiB 한도 뒤 삭제합니다. 사용자가 여는 artifact fallback의 SVG·PNG·HTML은 별도 0700 temp directory에 0600으로 남깁니다. `--iconPacks*`, 사용자 config/CSS/Puppeteer config, remote URL은 전달하지 않습니다. Runtime download는 staging installer에서만 수행하고 smoke render 통과 전에는 활성 pointer를 바꾸지 않습니다. CLI가 없거나 실패할 때만 기존 Go SVG와 설치된 `sips`·`rsvg-convert`·ImageMagick 변환기로 fallback합니다.
 - `CGO_ENABLED=0`, `GOPROXY=off`에서 build/test할 수 있으며 `go list -m all`은 자기 모듈 하나만 출력해야 합니다.
 - map은 lookup에만 사용하고 배치·출력 순서는 source-order slice로 결정합니다.
 - Cycle feedback은 Tarjan SCC membership 안에서 source edge order대로 greedy 분류합니다. Feedback set은 inclusion-minimal이지만 minimum-cardinality라고 주장하지 않습니다.

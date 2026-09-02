@@ -94,7 +94,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 1. `render_diagram` MCP tool이 있으면 `{source, title, theme: "auto"}`로 호출한다. 이 결과의 interactive UI가 기본 도식이다.
 2. Tool은 Flowchart·Sequence·ER·State의 표준 Mermaid source만 받는다. `policy` custom statement, ER display alias/table constraint처럼 표준 Mermaid가 아닌 metadata는 source에 넣지 말고 단계별 해설에 보존한다.
-3. Codex CLI/TUI는 MCP Apps iframe을 inline으로 표시하지 않는다. Tool의 `structuredContent.terminalFallback`을 최종 답변의 `text` code fence로 반드시 다시 보여주고, 더 선명한 graphical UI는 `/app`으로 같은 세션을 Desktop App에서 열 수 있다고 안내한다. TUI에서 "위에 interactive diagram이 보인다"고 말하지 않는다.
+3. Codex CLI/TUI는 MCP Apps iframe을 inline으로 표시하지 않는다. Tool result에 `image/png` block이 있으면 그것을 기본 도식으로 사용하고 `structuredContent.terminalFallback`을 다시 출력하지 않는다. PNG가 없을 때만 terminal fallback을 최종 답변의 `text` code fence로 보여주고, graphical UI는 `/app`으로 같은 세션을 Desktop App에서 열 수 있다고 안내한다. TUI에서 "위에 interactive diagram이 보인다"고 말하지 않는다.
 4. Desktop App처럼 MCP Apps UI를 실제로 표시하는 host에서는 terminal preview를 최종 답변에 중복하지 않는다.
 5. Tool이 없거나 `terminalFallback`이 비어 있고 UI도 표시되지 않는 surface에서만 아래 artifact fallback을 실행한다.
 6. Artifact 변환기도 없을 때만 terminal text renderer를 직접 사용한다.
@@ -108,14 +108,14 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 printf '%s\n' "$diagram_source" | scripts/render-artifacts.sh
 ```
 
-- MCP UI가 실제로 표시된 경우 PNG·HTML을 중복 첨부하지 않는다. Tool call 성공만으로 UI 표시 성공을 추정하지 않는다. Fallback을 실행한 경우에만 성공 stdout JSON의 `png` 경로를 `view_image` 같은 local image 도구로 읽어 image block으로 첨부한다.
-- 같은 JSON의 `html` 절대 경로를 `Interactive HTML로 열기` Markdown 링크로 함께 제공해 사용자가 pan·zoom·fit viewer를 선택할 수 있게 한다. 사용자가 inline image만 요청하면 HTML 링크를 생략할 수 있다.
+- MCP UI가 실제로 표시된 경우 PNG·HTML을 중복 첨부하지 않는다. Tool call 성공만으로 UI 표시 성공을 추정하지 않는다. Tool result에 PNG image block이 있으면 그 결과를 우선하고, 별도 artifact fallback을 실행한 경우에만 stdout JSON의 `png` 경로를 `view_image` 같은 local image 도구로 읽어 image block으로 첨부한다.
+- 같은 JSON의 `html` 절대 경로를 `Interactive HTML로 열기` Markdown 링크로 함께 제공해 사용자가 pan·zoom·fit viewer를 선택할 수 있게 한다. `renderer`가 `mermaid-cli`인지 확인하고 `terminal-svg`면 최종 bounded fallback임을 내부 evidence에 기록한다. 사용자가 inline image만 요청하면 HTML 링크를 생략할 수 있다.
 - Feedback/cycle이 2개 이상이거나 node가 8개 이상인 복잡한 도식은 PNG 미리보기와 HTML 링크를 모두 제공한다. 단순 도식은 PNG를 우선한다.
 - SVG/XML source나 PNG 경로 문자열을 최종 답변 본문에 붙이지 않는다.
 - Renderer가 만든 SVG geometry·PNG·HTML을 수동 편집하지 않는다. Session 내부에는 source, exit status, stderr, artifact 경로와 image dimensions을 검증 evidence로 유지한다.
-- Plugin renderer는 120-cell viewport와 Flow auto-fit을 사용한다. 요청 방향이 120 cells를 넘으면 반대 방향을 시도하며, 성공 출력의 모든 행은 120 cells 이하여야 한다.
+- Official Mermaid CLI path는 semantic layout과 neutral light/dark theme를 사용한다. 최종 Go renderer만 120-cell viewport와 Flow auto-fit을 사용하며, 요청 방향이 120 cells를 넘으면 반대 방향을 시도한다.
 - Mermaid source는 사용자가 재사용을 요청했을 때만 함께 보여준다.
 - 이미지 변환기나 image attachment 도구가 없는 surface에서는 동일 source를 `scripts/render.sh`로 렌더하고 성공 stdout을 `text` code fence에 그대로 넣는다.
 - 두 방향 모두 viewport를 넘거나 route가 모호하면 label·node 수를 줄이거나 핵심 이야기를 두 도식으로 나눠 한 번만 재시도한다.
 - 두 번째 실패 시 수동 Unicode 도식을 만들지 않는다. 도식을 생략하고 확인된 사실만 text로 설명하며 renderer 한계를 한 문장으로 밝힌다.
-- MCP server와 widget은 외부 network를 사용하지 않으며 runtime package download를 수행하지 않는다. Fallback renderer도 프로젝트 파일을 만들거나 자동 다운로드·업데이트하지 않는다.
+- MCP server와 widget은 외부 network를 사용하지 않으며 runtime package download를 수행하지 않는다. Official Mermaid CLI는 별도 설치 단계에서만 exact lockfile로 설치하고 render 중에는 다운로드·업데이트하지 않는다. Artifact renderer는 권한 제한 temp file만 만들며 project file을 변경하지 않는다.

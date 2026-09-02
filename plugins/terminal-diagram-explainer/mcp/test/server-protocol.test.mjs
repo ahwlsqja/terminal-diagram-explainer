@@ -8,13 +8,18 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function startServer() {
+function startServer({ withMmdc = true } = {}) {
   const child = spawn(process.execPath, ["src/server.mjs"], {
     cwd: root,
     env: {
       ...process.env,
       TERM_DIAGRAM_BIN: process.execPath,
       TERM_DIAGRAM_PREFIX_ARGS_JSON: JSON.stringify(["test/fake-term-diagram.mjs"]),
+      CODEX_HOME: withMmdc ? process.env.CODEX_HOME : path.join(root, "testdata", "missing-codex-home"),
+      TERMINAL_DIAGRAM_MMDC_BIN: withMmdc ? process.execPath : path.join(root, "missing-mmdc"),
+      TERMINAL_DIAGRAM_MMDC_PREFIX_ARGS_JSON: withMmdc
+        ? JSON.stringify(["test/fake-mmdc.mjs"])
+        : "[]",
     },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -114,14 +119,18 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
     source: "flowchart LR\nA[Request] --> B[Response]",
     title: "Request path",
     theme: "auto",
-    terminalFallback: "[Request] ---> [Response]",
+    terminalFallback: "",
     uiHint: "Codex TUI에서는 /app으로 같은 세션을 Desktop App에서 열어 inline UI를 확인하세요.",
   });
   assert.match(rendered.result.content[0].text, /Request path/);
-  assert.match(rendered.result.content[0].text, /```text\n\[Request\] ---> \[Response\]\n```/);
+  assert.doesNotMatch(rendered.result.content[0].text, /```text/);
+  assert.match(rendered.result.content[0].text, /Official Mermaid CLI/);
   assert.match(rendered.result.content[0].text, /\/app/);
-  assert.equal(rendered.result.content[1].type, "resource_link");
-  assert.equal(rendered.result.content[1].uri, "ui://terminal-diagram-explainer/viewer-v1.html");
+  assert.equal(rendered.result.content[1].type, "image");
+  assert.equal(rendered.result.content[1].mimeType, "image/png");
+  assert.match(rendered.result.content[1].data, /^iVBOR/);
+  assert.equal(rendered.result.content[2].type, "resource_link");
+  assert.equal(rendered.result.content[2].uri, "ui://terminal-diagram-explainer/viewer-v1.html");
 
   const rejected = await server.request("tools/call", {
     name: "render_diagram",
@@ -129,6 +138,26 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
   });
   assert.equal(rejected.result.isError, true);
   assert.equal(rejected.result.structuredContent, undefined);
+});
+
+test("runs the Go terminal renderer only when Mermaid CLI is unavailable", async (t) => {
+  const server = startServer({ withMmdc: false });
+  t.after(() => server.close());
+
+  const rendered = await server.request("tools/call", {
+    name: "render_diagram",
+    arguments: {
+      source: "flowchart LR\nA[Request] --> B[Response]",
+      title: "Fallback path",
+      theme: "light",
+    },
+  });
+  assert.equal(rendered.result.isError, undefined);
+  assert.equal(rendered.result.structuredContent.terminalFallback, "[Request] ---> [Response]");
+  assert.match(rendered.result.content[0].text, /terminal fallback/);
+  assert.match(rendered.result.content[0].text, /```text\n\[Request\] ---> \[Response\]\n```/);
+  assert.equal(rendered.result.content.some((item) => item.type === "image"), false);
+  assert.equal(rendered.result.content.at(-1).type, "resource_link");
 });
 
 test("built widget is deterministic", async () => {

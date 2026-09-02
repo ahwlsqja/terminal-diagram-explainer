@@ -36,3 +36,4 @@ mv "${install_temp}" "${install_target}"
 trap - EXIT
 
 "${install_target}" -version
+"${install_script_dir}/install-mermaid-cli.sh"

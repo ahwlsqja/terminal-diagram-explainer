@@ -37,7 +37,7 @@ button { font: inherit; color: inherit; }
 .tool-button:focus-visible { outline: 2px solid light-dark(#155eef, #8ab4f8); outline-offset: 1px; }
 .tool-button[aria-pressed="true"] { background: light-dark(#dedede, #45454d); }
 #zoom-value { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }
-#diagram-frame { position: relative; min-height: 360px; height: 520px; max-height: 72vh; overflow: hidden; }
+#diagram-frame { position: relative; min-height: 320px; height: calc(100vh - 40px); max-height: 900px; overflow: hidden; }
 #diagram-viewport { position: absolute; inset: 0; overflow: hidden; touch-action: none; cursor: grab; background: light-dark(#ffffff, #18181b); }
 #diagram-viewport[data-dragging="true"] { cursor: grabbing; }
 #diagram-viewport, #diagram-surface, #diagram-surface * { user-select: none; -webkit-user-select: none; }
@@ -49,7 +49,7 @@ button { font: inherit; color: inherit; }
 #diagram-status[data-state="error"] { color: light-dark(#b42318, #fda29b); }
 #diagram-status:empty { display: none; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
-@media (max-width: 480px) { #diagram-frame { min-height: 320px; height: 420px; } .toolbar { flex-wrap: wrap; } }
+@media (max-width: 480px) { #diagram-frame { min-height: 320px; height: calc(100vh - 76px); } .toolbar { flex-wrap: wrap; } }
 </style>
 </head>
 <body>
