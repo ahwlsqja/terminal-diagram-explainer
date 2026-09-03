@@ -2,11 +2,26 @@ import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { readFile } from "node:fs/promises";
+import { request as httpRequest } from "node:http";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+function requestWithHost(url, host) {
+  return new Promise((resolve, reject) => {
+    const request = httpRequest(url, { headers: { host } }, (response) => {
+      const chunks = [];
+      response.on("data", (chunk) => chunks.push(chunk));
+      response.on("end", () =>
+        resolve({ status: response.statusCode, body: Buffer.concat(chunks).toString("utf8") }),
+      );
+    });
+    request.on("error", reject);
+    request.end();
+  });
+}
 
 function startServer({ withMmdc = true, mmdcFailure = "" } = {}) {
   const child = spawn(process.execPath, ["src/server.mjs"], {
@@ -92,6 +107,7 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
   assert.equal(tool.name, "render_diagram");
   assert.equal(tool._meta.ui.resourceUri, "ui://terminal-diagram-explainer/viewer-v1.html");
   assert.equal(tool.annotations.readOnlyHint, true);
+  assert.equal(tool.annotations.idempotentHint, false);
 
   const resources = await server.request("resources/list");
   assert.equal(resources.result.resources[0].mimeType, "text/html;profile=mcp-app");
@@ -121,7 +137,9 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
     title: "Request path",
     theme: "auto",
     terminalFallback: "",
-    uiHint: "Codex TUI에서는 /app으로 같은 세션을 Desktop App에서 열어 inline UI를 확인하세요.",
+    uiHint:
+      "Codex TUI가 image를 placeholder로 표시하면 Local interactive HTML 링크를 여세요. /app으로 Desktop App inline UI도 열 수 있습니다.",
+    localViewerUrl: rendered.result.structuredContent.localViewerUrl,
   });
   assert.match(rendered.result.content[0].text, /Request path/);
   assert.doesNotMatch(rendered.result.content[0].text, /```text/);
@@ -130,8 +148,37 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
   assert.equal(rendered.result.content[1].type, "image");
   assert.equal(rendered.result.content[1].mimeType, "image/png");
   assert.match(rendered.result.content[1].data, /^iVBOR/);
-  assert.equal(rendered.result.content.length, 2);
-  assert.equal(rendered.result.content.some((item) => item.type === "resource_link"), false);
+  assert.equal(rendered.result.content.length, 3);
+  const localViewer = rendered.result.content[2];
+  assert.equal(localViewer.type, "resource_link");
+  assert.match(localViewer.uri, /^http:\/\/127\.0\.0\.1:\d+\/[A-Za-z0-9_-]{24}\/diagram\.html$/u);
+  assert.equal(localViewer.uri, rendered.result.structuredContent.localViewerUrl);
+  const localResponse = await fetch(localViewer.uri);
+  assert.equal(localResponse.status, 200);
+  assert.equal(localResponse.headers.get("cache-control"), "no-store");
+  assert.match(localResponse.headers.get("content-security-policy"), /frame-ancestors 'none'/);
+  const localHtml = await localResponse.text();
+  assert.match(localHtml, /__TERMINAL_DIAGRAM_STANDALONE_PAYLOAD__/);
+  assert.match(localHtml, /Request path/);
+  assert.match(localHtml, /flowchart LR\\nA\[Request\]/);
+  const unknownResponse = await fetch(
+    localViewer.uri.replace(
+      /[A-Za-z0-9_-]{24}\/diagram\.html$/u,
+      `${"A".repeat(24)}/diagram.html`,
+    ),
+  );
+  assert.equal(unknownResponse.status, 404);
+  const rejectedMethod = await fetch(localViewer.uri, { method: "POST" });
+  assert.equal(rejectedMethod.status, 405);
+  assert.equal(rejectedMethod.headers.get("allow"), "GET, HEAD");
+  const viewerPort = new URL(localViewer.uri).port;
+  const rebound = await requestWithHost(localViewer.uri, `evil.example:${viewerPort}`);
+  assert.equal(rebound.status, 421);
+  assert.doesNotMatch(rebound.body, /Request path/);
+  const foreignOrigin = await fetch(localViewer.uri, {
+    headers: { origin: "https://evil.example" },
+  });
+  assert.equal(foreignOrigin.status, 403);
 
   const rejected = await server.request("tools/call", {
     name: "render_diagram",
@@ -158,7 +205,8 @@ test("runs the Go terminal renderer only when Mermaid CLI is unavailable", async
   assert.match(rendered.result.content[0].text, /terminal fallback/);
   assert.match(rendered.result.content[0].text, /```text\n\[Request\] ---> \[Response\]\n```/);
   assert.equal(rendered.result.content.some((item) => item.type === "image"), false);
-  assert.equal(rendered.result.content.some((item) => item.type === "resource_link"), false);
+  assert.equal(rendered.result.content.at(-1).type, "resource_link");
+  assert.match(rendered.result.content.at(-1).uri, /^http:\/\/127\.0\.0\.1:/u);
 });
 
 test("normalizes common quoted edge labels before rendering", async (t) => {
@@ -178,6 +226,7 @@ test("normalizes common quoted edge labels before rendering", async (t) => {
     "flowchart TD\nREVIEW -.->|finding 또는 실패| WORKTREE\nREVIEW -->|clean| STABLE",
   );
   assert.equal(rendered.result.content.some((item) => item.type === "image"), true);
+  assert.equal(rendered.result.content.at(-1).type, "resource_link");
 });
 
 test("returns a bounded retry hint when Mermaid parsing fails", async (t) => {
@@ -190,7 +239,7 @@ test("returns a bounded retry hint when Mermaid parsing fails", async (t) => {
   });
   assert.match(rendered.result.content[0].text, /Mermaid source 문법 오류/);
   assert.equal(rendered.result.content.some((item) => item.type === "image"), false);
-  assert.equal(rendered.result.content.some((item) => item.type === "resource_link"), false);
+  assert.equal(rendered.result.content.at(-1).type, "resource_link");
 });
 
 test("built widget is deterministic", async () => {

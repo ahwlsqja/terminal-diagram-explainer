@@ -178,6 +178,13 @@
 - Renderer 실패를 runtime·parser·artifact size로 bounded 분류하고 표준 edge label 재시도 문법을 반환합니다.
 - 실제 Supalead SDLC feedback source를 포함한 216개를 3개 viewport에서 648회 재생합니다.
 
+## 22. TUI loopback interactive viewer — 완료 (0.20.2)
+
+- MCP image block을 실제 픽셀 대신 placeholder로 표시하는 TUI를 위해 세션 수명의 local interactive HTML URL을 반환합니다.
+- Viewer는 random loopback port와 144-bit token path를 사용하고 validated payload를 최대 16개만 메모리에 유지합니다.
+- HTTP response에 no-store·nosniff·same-origin·no-referrer·frame-ancestors CSP를 적용하며 외부 network나 project file을 사용하지 않습니다.
+- 실제 Chrome에서 localhost URL의 Mermaid SVG·fit·control·overflow를 검증하고 unknown token 404와 non-GET 405를 회귀 테스트합니다.
+
 ## 후속 시각 품질 과제
 
 - Dense scoped LR의 outer corridor는 endpoint manifest로 topology를 보존하지만 polyline이 길고 subgraph frame과 같은 stroke를 사용해 scan cost가 큽니다. LCA 내부 compact route search 또는 SVG semantic styling을 별도 개선으로 다룹니다.

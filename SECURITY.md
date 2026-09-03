@@ -12,6 +12,7 @@ Go fallback renderer는 Codex가 생성한 작은 설명용 Flowchart, Sequence,
 - Terminal control, bidi override와 zero-width format character를 render 전에 거부합니다.
 - Mermaid는 `securityLevel=strict`, `htmlLabels=false`, `maxEdges=200`, `maxTextSize=250000`으로 초기화합니다.
 - Widget은 `default-src 'none'`, `connect-src 'none'`, `img-src data: blob:`, `frame-src 'none'` CSP를 포함하며 외부 script·font·network resource를 로드하지 않습니다.
+- TUI용 interactive HTML은 random loopback port와 144-bit token path에서 최대 16개 payload만 메모리에 보관해 제공합니다. HTTP server는 `127.0.0.1`에만 bind하고 exact `Host: 127.0.0.1:<port>`와 same-origin `Origin`만 허용해 DNS rebinding을 거부합니다. 응답에는 `no-store`, `nosniff`, same-origin resource policy, `frame-ancestors 'none'` CSP를 적용하며 MCP process가 종료되면 함께 사라집니다.
 - Mermaid가 만든 SVG에서도 `script`, `foreignObject`, `image`, link/event handler와 CSS `url()` attribute를 제거합니다.
 - UI resource는 presentation layer입니다. Fact ledger와 source of truth는 Skill/model context에 있고 widget state는 authoritative data가 아닙니다.
 - MCP Apps UI가 없는 client에서는 pinned local `mermaid-cli`로 만든 PNG image block을 우선 반환합니다. CLI가 없거나 실패하면 local `term-diagram` binary를 5초·2 MiB 제한으로 실행한 terminal preview와 text/structured result로 fallback합니다. Renderer stderr와 local path는 tool result에 노출하지 않습니다.

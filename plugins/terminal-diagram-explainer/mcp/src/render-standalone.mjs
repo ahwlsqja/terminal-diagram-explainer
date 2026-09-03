@@ -3,6 +3,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 import { MAX_MERMAID_BYTES, validateRenderInput } from "./source-policy.mjs";
+import { buildStandaloneHtml } from "./standalone-html.mjs";
 
 function parseArgs(args) {
   let title = "Software diagram";
@@ -40,15 +41,6 @@ async function readBoundedStdin() {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-function scriptSafeJson(value) {
-  return JSON.stringify(value)
-    .replaceAll("<", "\\u003c")
-    .replaceAll(">", "\\u003e")
-    .replaceAll("&", "\\u0026")
-    .replaceAll("\u2028", "\\u2028")
-    .replaceAll("\u2029", "\\u2029");
-}
-
 const options = parseArgs(process.argv.slice(2));
 const source = await readBoundedStdin();
 const payload = validateRenderInput({ source, title: options.title, theme: options.theme });
@@ -61,7 +53,4 @@ if (options.sourceOutput) {
 }
 const widgetUrl = new URL("../dist/widget.html", import.meta.url);
 const widgetHtml = await readFile(widgetUrl, "utf8");
-const scriptIndex = widgetHtml.lastIndexOf("<script>");
-if (scriptIndex < 0) throw new Error("widget bundle has no inline script marker");
-const payloadScript = `<script>window.__TERMINAL_DIAGRAM_STANDALONE_PAYLOAD__=${scriptSafeJson(payload)};</script>\n`;
-process.stdout.write(`${widgetHtml.slice(0, scriptIndex)}${payloadScript}${widgetHtml.slice(scriptIndex)}`);
+process.stdout.write(buildStandaloneHtml(widgetHtml, payload));

@@ -1,21 +1,28 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
+import { randomBytes } from "node:crypto";
 import { accessSync, constants as fsConstants } from "node:fs";
 import { readFile } from "node:fs/promises";
+import { createServer } from "node:http";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
 
 import { renderMermaidArtifact } from "./mermaid-cli.mjs";
 import { validateRenderInput } from "./source-policy.mjs";
+import { buildStandaloneHtml } from "./standalone-html.mjs";
 
 const SERVER_NAME = "terminal-diagram-explainer";
-const SERVER_VERSION = "0.20.1";
+const SERVER_VERSION = "0.20.2";
 const UI_URI = "ui://terminal-diagram-explainer/viewer-v1.html";
 const UI_MIME_TYPE = "text/html;profile=mcp-app";
 const widgetUrl = new URL("../dist/widget.html", import.meta.url);
 const widgetHtml = await readFile(widgetUrl, "utf8");
+const localViewers = new Map();
+const localViewerServer = createServer(serveLocalViewer);
+const localViewerOrigin = await listenOnLoopback(localViewerServer);
+localViewerServer.unref();
 
 const tool = {
   name: "render_diagram",
@@ -55,13 +62,14 @@ const tool = {
       theme: { type: "string", enum: ["auto", "light", "dark"] },
       terminalFallback: { type: "string" },
       uiHint: { type: "string" },
+      localViewerUrl: { type: "string" },
     },
-    required: ["source", "title", "theme", "terminalFallback", "uiHint"],
+    required: ["source", "title", "theme", "terminalFallback", "uiHint", "localViewerUrl"],
   },
   annotations: {
     readOnlyHint: true,
     destructiveHint: false,
-    idempotentHint: true,
+    idempotentHint: false,
     openWorldHint: false,
   },
   _meta: {
@@ -80,8 +88,71 @@ const resource = {
   mimeType: UI_MIME_TYPE,
 };
 
-const UI_HINT =
-  "Codex TUI에서는 /app으로 같은 세션을 Desktop App에서 열어 inline UI를 확인하세요.";
+const UI_HINT = "Codex TUI가 image를 placeholder로 표시하면 Local interactive HTML 링크를 여세요. /app으로 Desktop App inline UI도 열 수 있습니다.";
+
+function listenOnLoopback(server) {
+  return new Promise((resolve) => {
+    const failed = () => resolve("");
+    server.once("error", failed);
+    server.listen(0, "127.0.0.1", () => {
+      server.off("error", failed);
+      const address = server.address();
+      resolve(typeof address === "object" && address ? `http://127.0.0.1:${address.port}` : "");
+    });
+  });
+}
+
+function serveLocalViewer(request, response) {
+  const expectedHost = `127.0.0.1:${request.socket.localPort}`;
+  if (request.headers.host?.toLowerCase() !== expectedHost) {
+    response.writeHead(421, { connection: "close" });
+    response.end();
+    return;
+  }
+  const expectedOrigin = `http://${expectedHost}`;
+  if (request.headers.origin && request.headers.origin !== expectedOrigin) {
+    response.writeHead(403, { connection: "close" });
+    response.end();
+    return;
+  }
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    response.writeHead(405, { allow: "GET, HEAD", connection: "close" });
+    response.end();
+    return;
+  }
+  const match = request.url?.match(/^\/([A-Za-z0-9_-]{24})\/diagram\.html$/u);
+  const payload = match ? localViewers.get(match[1]) : null;
+  if (!payload) {
+    response.writeHead(404, {
+      "content-type": "text/plain; charset=utf-8",
+      connection: "close",
+    });
+    response.end("Not found\n");
+    return;
+  }
+  const html = buildStandaloneHtml(widgetHtml, payload);
+  response.writeHead(200, {
+    "content-type": "text/html; charset=utf-8",
+    "content-length": Buffer.byteLength(html),
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'none'; img-src data: blob:; font-src 'none'; media-src 'none'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; worker-src 'none'; base-uri 'none'; form-action 'none'",
+    connection: "close",
+    "cross-origin-resource-policy": "same-origin",
+    "referrer-policy": "no-referrer",
+    "x-content-type-options": "nosniff",
+  });
+  response.end(request.method === "HEAD" ? undefined : html);
+}
+
+function registerLocalViewer(payload) {
+  if (!localViewerOrigin) return "";
+  const token = randomBytes(18).toString("base64url");
+  localViewers.set(token, payload);
+  while (localViewers.size > 16) {
+    localViewers.delete(localViewers.keys().next().value);
+  }
+  return `${localViewerOrigin}/${token}/diagram.html`;
+}
 
 function rendererCommand() {
   const configured = process.env.TERM_DIAGRAM_BIN;
@@ -127,6 +198,7 @@ function renderTerminalFallback(source) {
 }
 
 function toolResult(output) {
+  const localViewerUrl = registerLocalViewer(output);
   let png = null;
   let graphicFailure = "";
   try {
@@ -148,15 +220,25 @@ function toolResult(output) {
   const content = [
     {
       type: "text",
-      text: `Rendered interactive diagram: ${output.title}\n${UI_HINT}${preview}`,
+      text: `Rendered interactive diagram: ${output.title}\n${UI_HINT}${preview}${localViewerUrl ? `\n\nLocal interactive HTML: ${localViewerUrl}` : ""}`,
     },
   ];
   if (png) {
     content.push({ type: "image", data: png.toString("base64"), mimeType: "image/png" });
   }
+  if (localViewerUrl) {
+    content.push({
+      type: "resource_link",
+      uri: localViewerUrl,
+      name: "Local interactive HTML",
+      title: output.title,
+      description: "Open the self-contained Mermaid viewer while this Codex session is running.",
+      mimeType: "text/html",
+    });
+  }
   return {
     content,
-    structuredContent: { ...output, terminalFallback, uiHint: UI_HINT },
+    structuredContent: { ...output, terminalFallback, uiHint: UI_HINT, localViewerUrl },
   };
 }
 

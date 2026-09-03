@@ -94,7 +94,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 
 1. `render_diagram` MCP tool이 있으면 `{source, title, theme: "auto"}`로 호출한다. 이 결과의 interactive UI가 기본 도식이다.
 2. Tool은 Flowchart·Sequence·ER·State의 표준 Mermaid source만 받는다. `policy` custom statement, ER display alias/table constraint처럼 표준 Mermaid가 아닌 metadata는 source에 넣지 말고 단계별 해설에 보존한다.
-3. Codex CLI/TUI는 MCP Apps iframe을 inline으로 표시하지 않는다. Tool result에 `image/png` block이 있으면 그것을 기본 도식으로 사용하고 `structuredContent.terminalFallback`을 다시 출력하지 않는다. PNG가 없을 때만 terminal fallback을 최종 답변의 `text` code fence로 보여주고, graphical UI는 `/app`으로 같은 세션을 Desktop App에서 열 수 있다고 안내한다. TUI에서 "위에 interactive diagram이 보인다"고 말하지 않는다.
+3. Codex CLI/TUI는 MCP Apps iframe을 inline으로 표시하지 않으며 image block도 `<image content>` placeholder로만 보일 수 있다. 실제 PNG가 보이면 그것을 기본 도식으로 사용한다. Placeholder만 보이면 tool result의 `Local interactive HTML` HTTP link를 제공하고, `structuredContent.terminalFallback`을 다시 출력하지 않는다. PNG가 생성되지 않았을 때만 terminal fallback을 최종 답변의 `text` code fence로 보여준다. `/app`으로 같은 세션을 Desktop App에서 열 수도 있다고 안내하되 TUI에서 "위에 interactive diagram이 보인다"고 말하지 않는다.
 4. Desktop App처럼 MCP Apps UI를 실제로 표시하는 host에서는 terminal preview를 최종 답변에 중복하지 않는다.
 5. Tool이 없거나 `terminalFallback`이 비어 있고 UI도 표시되지 않는 surface에서만 아래 artifact fallback을 실행한다.
 6. Artifact 변환기도 없을 때만 terminal text renderer를 직접 사용한다.
