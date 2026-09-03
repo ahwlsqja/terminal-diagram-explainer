@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-function startServer({ withMmdc = true } = {}) {
+function startServer({ withMmdc = true, mmdcFailure = "" } = {}) {
   const child = spawn(process.execPath, ["src/server.mjs"], {
     cwd: root,
     env: {
@@ -20,6 +20,7 @@ function startServer({ withMmdc = true } = {}) {
       TERMINAL_DIAGRAM_MMDC_PREFIX_ARGS_JSON: withMmdc
         ? JSON.stringify(["test/fake-mmdc.mjs"])
         : "[]",
+      FAKE_MMDC_FAIL: mmdcFailure,
     },
     stdio: ["pipe", "pipe", "pipe"],
   });
@@ -129,8 +130,8 @@ test("serves a render tool and self-contained MCP App resource", async (t) => {
   assert.equal(rendered.result.content[1].type, "image");
   assert.equal(rendered.result.content[1].mimeType, "image/png");
   assert.match(rendered.result.content[1].data, /^iVBOR/);
-  assert.equal(rendered.result.content[2].type, "resource_link");
-  assert.equal(rendered.result.content[2].uri, "ui://terminal-diagram-explainer/viewer-v1.html");
+  assert.equal(rendered.result.content.length, 2);
+  assert.equal(rendered.result.content.some((item) => item.type === "resource_link"), false);
 
   const rejected = await server.request("tools/call", {
     name: "render_diagram",
@@ -157,7 +158,39 @@ test("runs the Go terminal renderer only when Mermaid CLI is unavailable", async
   assert.match(rendered.result.content[0].text, /terminal fallback/);
   assert.match(rendered.result.content[0].text, /```text\n\[Request\] ---> \[Response\]\n```/);
   assert.equal(rendered.result.content.some((item) => item.type === "image"), false);
-  assert.equal(rendered.result.content.at(-1).type, "resource_link");
+  assert.equal(rendered.result.content.some((item) => item.type === "resource_link"), false);
+});
+
+test("normalizes common quoted edge labels before rendering", async (t) => {
+  const server = startServer();
+  t.after(() => server.close());
+
+  const rendered = await server.request("tools/call", {
+    name: "render_diagram",
+    arguments: {
+      source:
+        'flowchart TD\nREVIEW -- "finding 또는 실패" -.-> WORKTREE\nREVIEW -- "clean" --> STABLE',
+      title: "Normalized labels",
+    },
+  });
+  assert.equal(
+    rendered.result.structuredContent.source,
+    "flowchart TD\nREVIEW -.->|finding 또는 실패| WORKTREE\nREVIEW -->|clean| STABLE",
+  );
+  assert.equal(rendered.result.content.some((item) => item.type === "image"), true);
+});
+
+test("returns a bounded retry hint when Mermaid parsing fails", async (t) => {
+  const server = startServer({ mmdcFailure: "parse" });
+  t.after(() => server.close());
+
+  const rendered = await server.request("tools/call", {
+    name: "render_diagram",
+    arguments: { source: "flowchart TD\nA -->", title: "Broken source" },
+  });
+  assert.match(rendered.result.content[0].text, /Mermaid source 문법 오류/);
+  assert.equal(rendered.result.content.some((item) => item.type === "image"), false);
+  assert.equal(rendered.result.content.some((item) => item.type === "resource_link"), false);
 });
 
 test("built widget is deterministic", async () => {

@@ -251,7 +251,7 @@ new ResizeObserver(() => {
 }).observe(viewport);
 
 const app = new App(
-  { name: "terminal-diagram-explainer", version: "0.20.0" },
+  { name: "terminal-diagram-explainer", version: "0.20.1" },
   {},
   { autoResize: true, strict: true },
 );

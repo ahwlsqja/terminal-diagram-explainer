@@ -10,6 +10,10 @@ if (args.length === 1 && args[0] === "--version") {
 if (process.env.FAKE_MMDC_LOG) {
   appendFileSync(process.env.FAKE_MMDC_LOG, `${JSON.stringify(args)}\n`);
 }
+if (process.env.FAKE_MMDC_FAIL === "parse") {
+  process.stderr.write("Parse error on line 2\n");
+  process.exit(1);
+}
 const outputIndex = args.indexOf("--output");
 const formatIndex = args.indexOf("--outputFormat");
 if (outputIndex < 0 || formatIndex < 0) process.exit(2);

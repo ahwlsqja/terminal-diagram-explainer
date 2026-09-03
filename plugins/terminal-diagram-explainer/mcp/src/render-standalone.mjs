@@ -53,7 +53,11 @@ const options = parseArgs(process.argv.slice(2));
 const source = await readBoundedStdin();
 const payload = validateRenderInput({ source, title: options.title, theme: options.theme });
 if (options.sourceOutput) {
-  await writeFile(options.sourceOutput, source, { encoding: "utf8", mode: 0o600, flag: "wx" });
+  await writeFile(options.sourceOutput, payload.source, {
+    encoding: "utf8",
+    mode: 0o600,
+    flag: "wx",
+  });
 }
 const widgetUrl = new URL("../dist/widget.html", import.meta.url);
 const widgetHtml = await readFile(widgetUrl, "utf8");

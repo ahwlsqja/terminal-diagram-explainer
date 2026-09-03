@@ -46,6 +46,28 @@ export function containsUnsafeMermaidSource(source) {
   return normalized === null || matchesUnsafeSyntax(normalized);
 }
 
+function normalizeQuotedFlowLabels(source) {
+  const lines = source.split("\n");
+  const header = lines.find((line) => {
+    const trimmed = line.trimStart();
+    return trimmed !== "" && !trimmed.startsWith("%%");
+  });
+  if (!header || !/^(?:flowchart|graph)\s+/u.test(header.trimStart())) return source;
+  return lines
+    .map((line) => {
+      if (line.trimStart().startsWith("%%")) return line;
+      let normalized = line;
+      for (let edge = 0; edge < 16; edge += 1) {
+        const match = normalized.match(/^(.*\S)\s+--\s+"([^"|\r\n]*)"\s+(-->|-\.->)\s+(\S.*)$/u);
+        if (!match) break;
+        const [, left, label, arrow, right] = match;
+        normalized = `${left} ${arrow}|${label}| ${right}`;
+      }
+      return normalized;
+    })
+    .join("\n");
+}
+
 export function validateRenderInput(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     throw new TypeError("render arguments must be an object");
@@ -84,5 +106,5 @@ export function validateRenderInput(value) {
     throw new TypeError("theme must be auto, light, or dark");
   }
 
-  return { source, title: title.trim(), theme };
+  return { source: normalizeQuotedFlowLabels(source), title: title.trim(), theme };
 }

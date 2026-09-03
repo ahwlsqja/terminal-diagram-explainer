@@ -140,7 +140,7 @@ export function renderMermaidArtifact(source, { format, theme = "light" } = {}) 
   if (!new Set(["light", "dark"]).has(theme)) {
     throw new TypeError("Mermaid artifact theme must be light or dark");
   }
-  validateRenderInput({ source, theme });
+  source = validateRenderInput({ source, theme }).source;
   const command = resolveMermaidCli();
   if (!command) {
     const error = new Error(`@mermaid-js/mermaid-cli ${MMDC_VERSION} is not installed`);
@@ -185,7 +185,9 @@ export function renderMermaidArtifact(source, { format, theme = "light" } = {}) 
     });
     if (result.error || result.status !== 0) {
       const detail = result.error?.message || result.stderr.trim() || `exit ${result.status}`;
-      throw new Error(`Mermaid CLI render failed: ${detail}`);
+      const error = new Error(`Mermaid CLI render failed: ${detail}`);
+      error.code = "MMDC_RENDER_FAILED";
+      throw error;
     }
     const bytes = readFileSync(outputPath);
     assertArtifact(format, bytes);

@@ -45,7 +45,7 @@ description: 비자명한 소프트웨어 아키텍처·데이터 흐름·API·W
 - 분기·의사결정·장애 처리: `flowchart TD`
 - API request/response, 서비스 간 호출 순서, fan-out, self-call: `sequenceDiagram`
 - Entity ownership, table attributes, PK/FK, cardinality 관계: `erDiagram`
-- 정상 흐름은 `-->`, 실패·비동기·보조 흐름은 `-.->`를 사용한다.
+- 정상 흐름은 `-->`, 실패·비동기·보조 흐름은 `-.->`를 사용한다. Edge label은 종류와 무관하게 반드시 pipe 표준 문법 `A -->|label| B`, `A -.->|label| B`를 사용한다. `A -- "label" --> B`, `A -- "label" -.-> B`처럼 quoted infix와 화살표를 조합하지 않는다.
 - Node/participant/entity ID는 source 의미를 드러내는 짧은 semantic identifier를 사용한다. Cycle·routed·relationship legend에는 ID가 그대로 표시되므로 `A`, `B`, `N1` 같은 opaque ID를 쓰지 않는다.
 - decision은 `ID{label}`, data store/view는 `ID[(label)]`로 표시한다.
 - ownership, service, data, trust boundary가 설명의 핵심이면 `subgraph ID[label] ... end`로 묶는다. Node ID와 subgraph ID는 전체 graph에서 유일해야 한다.

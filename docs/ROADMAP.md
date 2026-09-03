@@ -171,6 +171,13 @@
 - `mmdc`와 Puppeteer는 exact lockfile로 `$CODEX_HOME`에 개인 설치하며 plugin·repository에는 browser나 `node_modules`를 재배포하지 않습니다.
 - `mmdc`가 없거나 실패할 때만 기존 bounded Go renderer로 내려갑니다.
 
+## 21. TUI Mermaid syntax recovery — 완료 (0.20.1)
+
+- Flow edge의 quoted infix label을 표준 pipe label로 제한 정규화해 model-generated Mermaid의 반복 parser 실패를 복구합니다.
+- MCP Apps 연결은 tool metadata에 유지하되 TUI에서 가짜 HTTPS로 열리는 중복 `ui://` resource link는 결과 content에서 제거합니다.
+- Renderer 실패를 runtime·parser·artifact size로 bounded 분류하고 표준 edge label 재시도 문법을 반환합니다.
+- 실제 Supalead SDLC feedback source를 포함한 216개를 3개 viewport에서 648회 재생합니다.
+
 ## 후속 시각 품질 과제
 
 - Dense scoped LR의 outer corridor는 endpoint manifest로 topology를 보존하지만 polyline이 길고 subgraph frame과 같은 stroke를 사용해 scan cost가 큽니다. LCA 내부 compact route search 또는 SVG semantic styling을 별도 개선으로 다룹니다.

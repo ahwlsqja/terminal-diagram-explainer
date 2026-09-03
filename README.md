@@ -17,6 +17,8 @@ Codex Desktop의 지원 surface에서는 Skill이 표준 Mermaid source를 `rend
 
 Graphical source는 standard Mermaid 11을 사용하되 Skill은 software explanation에 필요한 Flowchart·Sequence·ER·State로 제한합니다. `click`, remote image/icon, CSS URL/import, init directive, active HTML은 server와 widget 양쪽에서 거부합니다.
 
+Model이 자주 만드는 quoted flow label `A -- "label" --> B`, `A -- "label" -.-> B`는 보안 검증 뒤 Mermaid 표준 `A -->|label| B`, `A -.->|label| B`로 정규화합니다. Desktop 전용 `ui://` resource는 tool metadata로만 연결하고 TUI 결과에는 클릭 불가능한 resource link를 중복 출력하지 않습니다.
+
 ## Terminal fallback 문법
 
 ```text

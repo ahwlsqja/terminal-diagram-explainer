@@ -20,6 +20,34 @@ test("accepts ordinary Mermaid diagrams and formatting-only labels", () => {
   }
 });
 
+test("canonicalizes quoted model-generated flow labels to standard Mermaid syntax", () => {
+  const source = `%% A -- "example remains unchanged" --> B
+flowchart TD
+  REVIEW -- "finding 또는 실패" -.-> WORKTREE
+  REVIEW -- "clean" --> STABLE{"120초 안정성?"}
+  STABLE -- "아니오" -.-> WORKTREE
+  STABLE -- "예" --> MERGE`;
+  assert.equal(
+    validateRenderInput({ source }).source,
+    `%% A -- "example remains unchanged" --> B
+flowchart TD
+  REVIEW -.->|finding 또는 실패| WORKTREE
+  REVIEW -->|clean| STABLE{"120초 안정성?"}
+  STABLE -.->|아니오| WORKTREE
+  STABLE -->|예| MERGE`,
+  );
+});
+
+test("does not mutate valid labels or non-flow diagrams", () => {
+  for (const source of [
+    'flowchart LR\nA["quoted -- node"] --> B',
+    "flowchart LR\nA -- yes --> B",
+    'sequenceDiagram\nA-->>B: "quoted -- message"',
+  ]) {
+    assert.equal(validateRenderInput({ source }).source, source);
+  }
+});
+
 test("rejects resource loading, config injection, active HTML, and disguised escapes", () => {
   for (const source of [
     'flowchart TD\nA@{ img: "https://example.test/x.png" }',

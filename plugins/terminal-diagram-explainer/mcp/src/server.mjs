@@ -11,7 +11,7 @@ import { renderMermaidArtifact } from "./mermaid-cli.mjs";
 import { validateRenderInput } from "./source-policy.mjs";
 
 const SERVER_NAME = "terminal-diagram-explainer";
-const SERVER_VERSION = "0.20.0";
+const SERVER_VERSION = "0.20.1";
 const UI_URI = "ui://terminal-diagram-explainer/viewer-v1.html";
 const UI_MIME_TYPE = "text/html;profile=mcp-app";
 const widgetUrl = new URL("../dist/widget.html", import.meta.url);
@@ -128,12 +128,14 @@ function renderTerminalFallback(source) {
 
 function toolResult(output) {
   let png = null;
+  let graphicFailure = "";
   try {
     png = renderMermaidArtifact(output.source, {
       format: "png",
       theme: output.theme === "dark" ? "dark" : "light",
     });
-  } catch {
+  } catch (error) {
+    graphicFailure = summarizeGraphicFailure(error);
     // The interactive resource and terminal renderer remain available without the optional CLI.
   }
   const terminalFallback = png ? "" : renderTerminalFallback(output.source);
@@ -141,8 +143,8 @@ function toolResult(output) {
   const preview = png
     ? "\n\nOfficial Mermaid CLI로 PNG 미리보기를 생성했습니다."
     : terminalFallback
-      ? `\n\nMermaid CLI를 사용할 수 없어 terminal fallback을 표시합니다:\n\`\`\`text\n${safeFallback}\n\`\`\``
-      : "\n\n그래픽·terminal 미리보기를 생성하지 못했습니다. /app으로 Desktop App에서 inline UI를 확인하세요.";
+      ? `\n\n${graphicFailure} terminal fallback을 표시합니다:\n\`\`\`text\n${safeFallback}\n\`\`\``
+      : `\n\n${graphicFailure} 표준 Mermaid edge label 문법 \`A -->|label| B\` 또는 \`A -.->|label| B\`로 source를 고쳐 한 번 재시도하세요.`;
   const content = [
     {
       type: "text",
@@ -152,18 +154,22 @@ function toolResult(output) {
   if (png) {
     content.push({ type: "image", data: png.toString("base64"), mimeType: "image/png" });
   }
-  content.push({
-    type: "resource_link",
-    uri: UI_URI,
-    name: "Interactive software diagram",
-    title: output.title,
-    description: "Open the interactive Mermaid diagram in an MCP Apps compatible host.",
-    mimeType: UI_MIME_TYPE,
-  });
   return {
     content,
     structuredContent: { ...output, terminalFallback, uiHint: UI_HINT },
   };
+}
+
+function summarizeGraphicFailure(error) {
+  if (error?.code === "MMDC_UNAVAILABLE") return "Mermaid CLI runtime을 찾지 못했습니다.";
+  const message = error instanceof Error ? error.message : "";
+  if (/lexical error|parse error|syntax error/iu.test(message)) {
+    return "Mermaid source 문법 오류로 PNG를 생성하지 못했습니다.";
+  }
+  if (/artifact must be between/iu.test(message)) {
+    return "Mermaid PNG가 artifact 크기 제한을 벗어났습니다.";
+  }
+  return "Mermaid CLI가 PNG를 생성하지 못했습니다.";
 }
 
 function resultFor(method, params) {
